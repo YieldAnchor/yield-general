@@ -1,0 +1,18 @@
+[package]
+name = "yield_vault"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "yield_vault"
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "21.7"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = false
+lto = true
+codegen-units = 1
+strip = true
