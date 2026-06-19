@@ -25,3 +25,22 @@ YieldAnchor is structured as a hybrid full-stack Web3 application designed for i
   ┌──────────────────────────────────────────────────────────────────────────┐
   │                   Stellar Testnet RPC Engine (Soroban)                   │
   └──────────────────────────────────────────────────────────────────────────┘
+
+
+├── /backend                    # Express API server & Soroban ledger event indexer
+│   ├── src/
+│   │   ├── index.ts            # REST endpoints (/api/pool-stats)
+│   │   └── watcher.ts          # Soroban event polling routine
+│   └── package.json
+│
+├── /contracts/yield_vault      # Soroban Smart Contract Development Workspace
+│   ├── src/
+│   │   └── lib.rs              # Core YieldVault contract compilation logic
+│   └── Cargo.toml              # Rust crate configurations & SDK flags
+│
+└── /frontend                   # React SPA Investor Interface
+    ├── src/
+    │   ├── App.tsx             # State view router (Landing, Auth, Dashboard)
+    │   ├── main.tsx            # DOM initialization entry
+    │   └── index.css           # Global full-viewport structural resets
+    └── package.json
