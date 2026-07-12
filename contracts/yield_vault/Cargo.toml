@@ -12,7 +12,7 @@ soroban-sdk = "21.7"
 
 [profile.release]
 opt-level = "z"
-overflow-checks = false
+overflow-checks = true
 lto = true
 codegen-units = 1
 strip = true

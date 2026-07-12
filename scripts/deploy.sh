@@ -27,10 +27,11 @@ DEPLOYER_IDENTITY="${DEPLOYER_IDENTITY:-deployer}"
 
 # The Stellar asset contract address (e.g. native SAC-wrapped USDC on testnet)
 # that depositors will supply to the vault. Replace with your actual token.
-ASSET_CONTRACT_ID="${ASSET_CONTRACT_ID:-CA4RS4H7GQJF7H7OFEQ7LLYHJKHMEK5JDO5SKMEI5OJQ7TSBQR4PXKWS}"
+# NOTE: Must be a valid Stellar address (G... for accounts, C... for contracts).
+ASSET_CONTRACT_ID="${ASSET_CONTRACT_ID:-GDDB57WR5G7IVSLVKLIH5DBOAIQAPV4EEGCDFBDAHM7GQ4EPJKEM7L2F}"
 
 # Admin address (the Stellar account that manages the vault)
-ADMIN_ADDRESS="${ADMIN_ADDRESS:-GBN7CY6LSLUHCJGTQLWKRKYZNUBFJR4LPKRICYN7DELX7MQWPAHO3RGM}"
+ADMIN_ADDRESS="${ADMIN_ADDRESS:-GDDB57WR5G7IVSLVKLIH5DBOAIQAPV4EEGCDFBDAHM7GQ4EPJKEM7L2F}"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
