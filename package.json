@@ -1,0 +1,23 @@
+{
+  "name": "yieldanchor-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "pnpm": {
+    "overrides": {
+      "browserslist": "4.28.2",
+      "electron-to-chromium": "1.5.376"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run build:web && pnpm run build:api && pnpm run build:indexer",
+    "build:web": "pnpm --filter @yieldanchor/web build",
+    "build:api": "pnpm --filter @yieldanchor/api build",
+    "build:indexer": "pnpm --filter @yieldanchor/indexer build",
+    "typecheck": "pnpm run build:web && pnpm run build:api && pnpm run build:indexer",
+    "dev:web": "pnpm --filter @yieldanchor/web dev",
+    "dev:api": "pnpm --filter @yieldanchor/api dev",
+    "dev:indexer": "pnpm --filter @yieldanchor/indexer dev",
+    "contract:build": "cargo build --manifest-path contracts/yield_vault/Cargo.toml --target wasm32-unknown-unknown --release"
+  }
+}
