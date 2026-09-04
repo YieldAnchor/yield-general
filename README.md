@@ -2,7 +2,7 @@
 
 YieldAnchor is a Stellar-native architecture for future real-world-asset (RWA) yield infrastructure. The protocol is intended to connect tokenized asset strategies with transparent Soroban contracts, an indexing and API layer, and web interfaces for investors and institutions.
 
-This repository is currently in an architecture and scaffold phase. The structure is being prepared before production protocol features are implemented.
+This repository has completed Phase 0 architecture work and Phase 1 implementation of the core YieldVault contract. Phase 1's yield is a deterministic Testnet-only simulation; it is not real Treasury Bill/RWA yield and must not be used with production funds.
 
 ## Vision
 
@@ -76,7 +76,7 @@ The long-term architecture has six authority boundaries:
 5. Soroban contracts enforce protocol state transitions and on-chain permissions.
 6. RWA strategy integrations connect approved off-chain assets to protocol reporting and controls.
 
-The current repository contains only an early web scaffold, two read endpoints, a polling scaffold, and one existing Soroban contract. These pieces are not production-ready.
+Phase 1 adds the core YieldVault contract while preserving the Phase 0 web, API, indexer, and repository architecture. The application layers remain early scaffolds and are not production-ready.
 
 ## Smart Contract Architecture
 
@@ -92,7 +92,7 @@ The planned contract set is:
 - `treasury`: isolates protocol-controlled treasury operations.
 - `mocks`: test-only assets and dependencies.
 
-The existing `contracts/yield_vault` crate is preserved. Its current methods are an early testnet scaffold and must not be treated as an audited vault, accounting system, yield engine, or production deployment. The other contract directories are intentionally placeholders.
+The `contracts/yield_vault` crate now contains the Phase 1 core vault: asset-agnostic deposits, shares, redemption, withdrawals, checked integer accounting, pause controls, authorization, events, read-only views, and deterministic ledger-time simulation. The simulated yield is explicitly Testnet-only and is not an audited vault, real yield engine, Treasury Bill integration, RWA integration, oracle, strategy, NAV calculation, or production deployment. The other contract directories remain intentionally empty placeholders.
 
 ## Backend Architecture
 
@@ -161,7 +161,7 @@ The planned transaction lifecycle is:
 7. The database stores a derived projection and checkpoint.
 8. The API serves the projection to the frontend.
 
-Only wallet connection and early read-oriented scaffold behavior exist today. Deposit, withdrawal, accounting, yield, and transaction execution are not complete features.
+The frontend still contains only wallet connection and early read-oriented scaffold behavior. It does not integrate the Phase 1 contract or implement production deposit, withdrawal, accounting, yield, or transaction-execution workflows.
 
 ## RWA Architecture
 
@@ -246,8 +246,8 @@ The repository currently uses the pinned dependency versions in each application
 
 ## Development Phases
 
-1. Architecture and repository boundaries.
-2. Contract specifications, interfaces, authorization model, and tests.
+1. Architecture and repository boundaries (Phase 0 complete).
+2. Core YieldVault contract, integer accounting, authorization, pause controls, simulated Testnet yield, and unit tests (Phase 1 complete).
 3. Database schema, migrations, repositories, and indexer checkpoints.
 4. Contract clients, shared types, validation, and Stellar utilities.
 5. Read-only API projections and frontend navigation.
@@ -265,7 +265,7 @@ Each phase should add explicit tests and documentation before dependent features
 - Freighter wallet context under `apps/web/src/components/wallet`.
 - Express API scaffold under `services/api`.
 - Existing read-oriented pool statistics and transaction routes.
-- Existing Soroban `yield_vault` crate under `contracts/yield_vault`.
+- Phase 1 Soroban `yield_vault` contract under `contracts/yield_vault`, including unit tests and Testnet-only simulated yield.
 - Existing RPC polling scaffold under `services/indexer/src/watcher.ts`.
 - Existing database migration moved to `database/migrations`.
 - Testnet deployment script moved to `scripts/deploy`.
@@ -274,7 +274,7 @@ Each phase should add explicit tests and documentation before dependent features
 ### Architecture / Planned
 
 - Vault factory and complete modular contract suite.
-- Production vault accounting, share accounting, yield calculations, fees, and treasury logic.
+- Production yield sources, RWA/Treasury Bill integrations, and production vault accounting beyond the Phase 1 simulation.
 - Contract clients and shared domain types.
 - Reliable event decoding, processing, checkpointing, replay, and reconciliation.
 - Complete API controllers, repositories, authentication, compliance, and analytics.
@@ -284,7 +284,7 @@ Each phase should add explicit tests and documentation before dependent features
 
 ## Future Roadmap
 
-The immediate next milestone is to specify contract boundaries and data authority before adding feature code. Subsequent milestones will implement and test one vertical slice at a time, beginning with read-only contract and indexer foundations and adding transaction workflows only after their security model is documented.
+Phase 1 establishes and tests the core YieldVault boundary with a clearly labeled Testnet-only yield simulation. The next milestone is to specify the database/indexer projection and contract-client boundaries before integrating the vault into application workflows. Production yield, RWA/Treasury Bill integrations, and dependent features require separate design, security review, and later phases.
 
 No current scaffold should be used with production funds or interpreted as an investment product.
 
@@ -314,7 +314,7 @@ pnpm run dev:api
 pnpm run dev:indexer
 ```
 
-Build the existing contract crate with `make contract-build`. Deployment is intentionally not part of the architecture phase; the script under `scripts/deploy` documents the existing testnet workflow and should be reviewed before any use.
+Run the Phase 1 contract checks with `cargo fmt --all -- --check`, `cargo check -p yield_vault`, `cargo test -p yield_vault`, and `cargo clippy -p yield_vault --all-targets -- -D warnings`. Build with `make contract-build`. The deployment script under `scripts/deploy` is a Testnet-only development aid and initializes the Phase 1 metadata; it must be reviewed before any use.
 
 ## Contribution Guidelines
 

@@ -89,7 +89,8 @@ echo "════════════════════════�
 echo "  STEP 3: Initializing yield_vault contract"
 echo "════════════════════════════════════════════════════════════════════"
 
-# invoke the initialize(admin: Address, asset_id: Address) function
+# Invoke initialize(admin, asset, name, symbol, decimals). Phase 1 yield is
+# deterministic simulation only and must not be used as real RWA/T-Bill yield.
 stellar contract invoke \
   --id "$CONTRACT_ID" \
   --source "$DEPLOYER_IDENTITY" \
@@ -99,7 +100,10 @@ stellar contract invoke \
   -- \
   initialize \
   --admin "$ADMIN_ADDRESS" \
-  --asset_id "$ASSET_CONTRACT_ID"
+  --asset "$ASSET_CONTRACT_ID" \
+  --name "YieldAnchor Vault" \
+  --symbol "yVAULT" \
+  --decimals 6
 
 echo "  ✓ Contract initialized with admin=$ADMIN_ADDRESS, asset=$ASSET_CONTRACT_ID"
 
