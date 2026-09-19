@@ -271,6 +271,13 @@ export class YieldVaultClient {
     );
   }
 
+  async maxRedeemable(): Promise<Amount> {
+    return decodeAmount(
+      await this.read(VAULT_METHODS.maxRedeemable, []),
+      'maximum redeemable shares',
+    );
+  }
+
   async balanceOf(user: StellarAddress): Promise<Amount> {
     const account = stellarAccountIdSchema.parse(user);
     return decodeAmount(

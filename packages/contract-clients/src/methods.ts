@@ -1,3 +1,5 @@
+import { MAX_REDEEMABLE_METHOD } from '@yieldanchor/constants';
+
 /**
  * `YieldVault` entry points, as named in the contract's ABI.
  *
@@ -29,6 +31,7 @@ export const VAULT_METHODS = {
   balanceOf: 'balance_of',
   underlyingBalanceOf: 'underlying_balance_of',
   availableLiquidity: 'available_liquidity',
+  maxRedeemable: MAX_REDEEMABLE_METHOD,
   totalAssets: 'total_assets',
   totalShares: 'total_shares',
   sharePrice: 'share_price',

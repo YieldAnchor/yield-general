@@ -176,6 +176,33 @@ describe('YieldVaultClient construction', () => {
 });
 
 describe('read methods', () => {
+  it.each([0n, 93n, 170141183460469231731687303715884105727n])(
+    'reads max_redeemable as an exact Amount: %s',
+    async (amount) => {
+      const server = new StubServer({
+        simulation: simulationSuccess(nativeToScVal(amount, { type: 'i128' })),
+      });
+      const client = new YieldVaultClient({
+        contractId: VAULT,
+        network: NETWORK,
+        server,
+      });
+
+      await expect(client.maxRedeemable()).resolves.toBe(amount);
+      expect(invokedMethod(server.simulated[0])).toBe('max_redeemable');
+      expect(invokedArgs(server.simulated[0])).toEqual([]);
+      expect(server.sent).toHaveLength(0);
+    },
+  );
+
+  it('rejects a malformed maximum-redemption result', async () => {
+    const server = new StubServer({
+      simulation: simulationSuccess(nativeToScVal('93', { type: 'string' })),
+    });
+
+    await expect(clientWith(server).maxRedeemable()).rejects.toThrow();
+  });
+
   it('simulates total_assets and decodes an exact integer', async () => {
     const server = new StubServer({
       simulation: simulationSuccess(
