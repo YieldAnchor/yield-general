@@ -21,6 +21,16 @@ The contract includes a deterministic simple-interest simulation at `8.00%` APR,
 
 It is **not** a Treasury Bill integration, RWA integration, oracle, strategy, reserve proof, NAV calculation, or real yield source. Simulated accounting yield does not mint underlying tokens; Testnet redemption tests must explicitly provide any additional token liquidity. Do not deploy this simulation for production funds or mainnet use.
 
+## Unbacked yield limitations
+
+**TESTNET SIMULATION ONLY:** immediately after a deposit, before redemptions or external top-ups, the deposited principal is backed by tokens held by the vault. Accruing simulated yield does not add any tokens. Nevertheless, `total_assets` includes principal plus accrued and pending simulated yield, so it can exceed the tokens actually held.
+
+For example, an untouched 100-unit deposit can accrue 8 units of simulated yield while the vault still holds only 100 tokens. Redeeming all shares would require 108 tokens and returns `NoLiquidity` (code 10) unless the missing liquidity is supplied separately. This is an expected outcome of the simulation, not an exceptional token-transfer failure.
+
+`share_price` is consequently optimistic: it values shares using accounted assets, including unbacked yield. `available_liquidity` reports the actual token balance that can fund payments. Deposits do transfer real principal, but a holder's eventual payout is still constrained by that liquidity, their shares, rounding, and the contract's other checks. Redemptions and external top-ups can change the relationship between principal and tokens held; there is no permanent guarantee that every reported asset or every holder's full principal remains withdrawable.
+
+See the [observed Testnet limitations](../../docs/deployment/testnet.md#phase-1-limitations) for the existing deployment evidence. These are not real T-Bill/RWA returns or production-fund guarantees.
+
 ## Accounting model
 
 - `principal` tracks assets deposited through the vault.
