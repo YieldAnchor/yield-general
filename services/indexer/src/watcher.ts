@@ -111,14 +111,19 @@ export async function startWatcher(): Promise<void> {
 
   if (checkpoint) {
     console.log(
-      `Resuming ${EVENTS_STREAM} from cursor ${cursor} (last ledger ${lastLedger}).`,
+      `Resuming ${EVENTS_STREAM} from checkpoint cursor ${cursor} (last ledger ${lastLedger}).`,
+    );
+  } else if (typeof config.startLedger === 'number') {
+    lastLedger = config.startLedger;
+    console.log(
+      `No checkpoint stored for ${EVENTS_STREAM}; starting from configured ledger ${lastLedger}.`,
     );
   } else {
     // With no checkpoint there is nothing to page from, so anchor on the
     // ledger tip. `lastLedger` doubles as the first request's `startLedger`.
     lastLedger = (await server.getLatestLedger()).sequence;
     console.log(
-      `No checkpoint stored for ${EVENTS_STREAM}; starting from ledger ${lastLedger}.`,
+      `No checkpoint stored for ${EVENTS_STREAM}; starting from ledger tip ${lastLedger}.`,
     );
   }
 
