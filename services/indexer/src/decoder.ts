@@ -69,18 +69,35 @@ export function decodeVaultEvent(
   switch (topic) {
     case 'deposit':
     case 'withdraw': {
-      const [assetsValue, sharesValue] = asItems(payload);
+      const values = asItems(payload);
+      if (values.length !== 2 || !userAddress) {
+        return null;
+      }
+      const [assetsValue, sharesValue] = values;
       assets = asBigInt(assetsValue);
       shares = asBigInt(sharesValue);
+      if (assets === null || shares === null) {
+        return null;
+      }
       break;
     }
     case 'share_mint':
     case 'share_burn':
       shares = asBigInt(payload);
+      if (shares === null || !userAddress) {
+        return null;
+      }
       break;
     case 'yield': {
-      const [yieldAmount] = asItems(payload);
+      const values = asItems(payload);
+      if (values.length !== 2 || asBigInt(values[1]) === null) {
+        return null;
+      }
+      const [yieldAmount] = values;
       assets = asBigInt(yieldAmount);
+      if (assets === null) {
+        return null;
+      }
       break;
     }
     case 'initialize': {

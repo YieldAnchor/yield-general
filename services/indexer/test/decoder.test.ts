@@ -179,6 +179,130 @@ describe('decodeVaultEvent', () => {
     );
   });
 
+  it.each(['deposit', 'withdraw'])(
+    'rejects %s payloads with the wrong tuple length',
+    (kind) => {
+      for (const value of [
+        vec(),
+        vec(scv(1n, 'i128')),
+        vec(scv(1n, 'i128'), scv(2n, 'i128'), scv(3n, 'i128')),
+        scv(1n, 'i128'),
+      ]) {
+        expect(
+          decodeVaultEvent(
+            makeEvent({
+              topic: [scv(kind, 'symbol'), scv(USER, 'address')],
+              value,
+            }),
+          ),
+        ).toBeNull();
+      }
+    },
+  );
+
+  it('rejects the legacy scaffold deposit payload instead of misattributing amounts', () => {
+    expect(
+      decodeVaultEvent(
+        makeEvent({
+          topic: depositTopic,
+          value: vec(
+            scv(USER, 'address'),
+            scv(1000n, 'i128'),
+            scv(80n, 'i128'),
+          ),
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it.each(['deposit', 'withdraw'])(
+    'rejects %s when either amount is not an integer',
+    (kind) => {
+      for (const invalid of [
+        scv('100', 'string'),
+        scv('1.5', 'string'),
+        scv(true),
+        xdr.ScVal.scvVoid(),
+      ]) {
+        for (const value of [
+          vec(invalid, scv(1n, 'i128')),
+          vec(scv(1n, 'i128'), invalid),
+        ]) {
+          expect(
+            decodeVaultEvent(
+              makeEvent({
+                topic: [scv(kind, 'symbol'), scv(USER, 'address')],
+                value,
+              }),
+            ),
+          ).toBeNull();
+        }
+      }
+    },
+  );
+
+  it.each(['deposit', 'withdraw', 'share_mint', 'share_burn'])(
+    'rejects %s without an attributable user',
+    (kind) => {
+      const value = kind.startsWith('share_')
+        ? scv(1n, 'i128')
+        : vec(scv(1n, 'i128'), scv(1n, 'i128'));
+      for (const topic of [
+        [scv(kind, 'symbol')],
+        [scv(kind, 'symbol'), scv(1, 'u32')],
+      ]) {
+        expect(decodeVaultEvent(makeEvent({ topic, value }))).toBeNull();
+      }
+    },
+  );
+
+  it.each(['share_mint', 'share_burn'])(
+    'rejects %s without a scalar integer share amount',
+    (kind) => {
+      for (const value of [
+        scv('100', 'string'),
+        scv(true),
+        vec(scv(1n, 'i128')),
+        xdr.ScVal.scvVoid(),
+      ]) {
+        expect(
+          decodeVaultEvent(
+            makeEvent({
+              topic: [scv(kind, 'symbol'), scv(USER, 'address')],
+              value,
+            }),
+          ),
+        ).toBeNull();
+      }
+    },
+  );
+
+  it('rejects malformed yield tuples', () => {
+    for (const value of [
+      vec(),
+      vec(scv(1n, 'i128')),
+      vec(scv(1n, 'i128'), scv(1n, 'u64'), scv(2n, 'i128')),
+      vec(scv('1.5', 'string'), scv(1n, 'u64')),
+      vec(scv(1n, 'i128'), scv('later', 'string')),
+    ]) {
+      expect(
+        decodeVaultEvent(makeEvent({ topic: [scv('yield', 'symbol')], value })),
+      ).toBeNull();
+    }
+  });
+
+  it('preserves valid zero amounts', () => {
+    const decoded = decodeVaultEvent(
+      makeEvent({
+        topic: depositTopic,
+        value: vec(scv(0n, 'i128'), scv(0n, 'i128')),
+      }),
+    );
+
+    expect(decoded?.assets).toBe(0n);
+    expect(decoded?.shares).toBe(0n);
+  });
+
   it('carries ledger, transaction hash and close time through', () => {
     const decoded = decodeVaultEvent(
       makeEvent({
