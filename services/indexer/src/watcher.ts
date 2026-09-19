@@ -168,7 +168,7 @@ export async function startWatcher(): Promise<void> {
 
       if (decoded.length > 0) {
         console.log(
-          `Persisted ${decoded.length} vault event(s) through ledger ${observedLedger}.`,
+          `${supabase ? 'Persisted' : 'Decoded'} ${decoded.length} vault event(s) through ledger ${observedLedger}${supabase ? '.' : ' (not persisted: Supabase is not configured).'}`,
         );
       }
 
