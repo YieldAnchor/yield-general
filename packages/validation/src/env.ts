@@ -42,9 +42,12 @@ export const optionalContractIdSchema = z
 
 export const sorobanRpcUrlSchema = z.string().trim().url('Not a valid URL');
 
+const startLedgerSchema = z.coerce.number().int().nonnegative().safe();
+
 export interface IndexerEnvConfig {
   rpcUrl: string;
   contractId: string;
+  startLedger: number | null;
   supabaseUrl: string | null;
   supabaseKey: string | null;
 }
@@ -101,6 +104,13 @@ export function parseIndexerEnv(env: EnvLike = {}): IndexerEnvResult {
         env.CONTRACT_ID,
         '',
         'CONTRACT_ID',
+        issues,
+      ),
+      startLedger: resolve(
+        startLedgerSchema,
+        env.INDEXER_START_LEDGER,
+        null,
+        'INDEXER_START_LEDGER',
         issues,
       ),
       supabaseUrl: resolve(

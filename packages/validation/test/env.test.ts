@@ -15,6 +15,34 @@ describe('parseIndexerEnv', () => {
     expect(config.contractId).toBe('');
     expect(config.supabaseUrl).toBeNull();
     expect(config.supabaseKey).toBeNull();
+    expect(config.startLedger).toBeNull();
+    expect(issues).toEqual([]);
+  });
+
+  it.each(['0', '4706400', ' 4706400 '])('accepts start ledger %s', (value) => {
+    const { config, issues } = parseIndexerEnv({ INDEXER_START_LEDGER: value });
+
+    expect(config.startLedger).toBe(Number(value));
+    expect(issues).toEqual([]);
+  });
+
+  it.each(['-1', '1.5', 'not-a-ledger', 'Infinity', '9007199254740992'])(
+    'reports invalid start ledger %s and retains the default',
+    (value) => {
+      const { config, issues } = parseIndexerEnv({
+        INDEXER_START_LEDGER: value,
+      });
+
+      expect(config.startLedger).toBeNull();
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toContain('INDEXER_START_LEDGER');
+    },
+  );
+
+  it.each(['', '   '])('treats an empty start ledger as unset', (value) => {
+    const { config, issues } = parseIndexerEnv({ INDEXER_START_LEDGER: value });
+
+    expect(config.startLedger).toBeNull();
     expect(issues).toEqual([]);
   });
 

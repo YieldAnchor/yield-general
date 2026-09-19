@@ -17,6 +17,7 @@ dotenv.config();
 export interface IndexerConfig {
   rpcUrl: string;
   contractId: string;
+  startLedger: number | null;
   supabaseUrl: string | null;
   supabaseKey: string | null;
 }

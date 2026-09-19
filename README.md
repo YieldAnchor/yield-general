@@ -133,6 +133,10 @@ Phase 2 implements the observation and persistence path:
 - `repositories/vault-repository.ts` upserts vault metadata and appends decoded events, deduplicating on the Soroban event id so a replay is idempotent.
 - `config.ts` reads the RPC, contract, and Supabase configuration.
 
+Set `INDEXER_START_LEDGER` to a non-negative safe integer to backfill retained events on a cold start, for example the ledger containing the vault's deployment. A stored checkpoint always takes precedence, even if the configured ledger is older or newer; this option never rewinds a running projection. When the value is unset or invalid, the watcher uses the current ledger tip. Invalid values are reported, and startup logs identify the chosen source: checkpoint, configured ledger, or tip.
+
+The RPC provider must still retain the requested events (Testnet commonly retains roughly seven days). Setting an old ledger does not recover expired events; choose a ledger within the provider's retention window. Start from the initialization ledger when available so vault metadata can be projected. This option does not erase checkpoints or automatically re-project existing rows.
+
 Still planned: a separate processor/handler split, reconciliation, and stronger replay guarantees. The watcher also retains a scaffold-only `pool_snapshots` write that the existing API route and dashboard still consume; replacing it with real vault state requires contract state reads (Phase 5).
 
 ## Frontend Architecture
