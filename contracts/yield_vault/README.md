@@ -33,6 +33,14 @@ It is **not** a Treasury Bill integration, RWA integration, oracle, strategy, re
 - Asset-targeted withdrawals use ceiling rounding for shares and transfer exactly the requested assets.
 - Share price is returned at `1e18` precision.
 
+## Sizing redemptions
+
+`max_redeemable` (TypeScript: `YieldVaultClient.maxRedeemable()`) returns the largest vault-wide share amount that current token liquidity can settle at the current ledger timestamp. It is read-only, includes pending simulated yield, and uses the same floor rounding as `redeem`. Empty, paused, or zero-liquidity vaults return zero; an uninitialized vault still returns `NotInit`.
+
+When liquidity covers all accounted assets, the limit is total share supply. Otherwise the exact upper bound is `ceil((liquidity + 1) * totalShares / totalAssets) - 1`, evaluated using checked arithmetic without an overflowing intermediate product. For example, 100 liquid units with 108 accounted units and 100 shares can settle 93 shares, not merely the 92 obtained by floor-converting liquidity to shares.
+
+Callers must also cap this value by their own share balance. The view does not reserve liquidity or include a guessed delay margin: time, another redemption, or a pause between reading and submission can invalidate the result. Re-simulate before signing and allow for those changes; no future transaction success is guaranteed. Existing deployed contracts need a new deployment to expose this additional view.
+
 ## Verification
 
 Run from the repository root:

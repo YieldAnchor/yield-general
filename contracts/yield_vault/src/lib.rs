@@ -315,6 +315,24 @@ impl YieldVault {
         Ok(token::TokenClient::new(&env, &config.asset).balance(&env.current_contract_address()))
     }
 
+    pub fn max_redeemable(env: Env) -> Result<i128, VaultError> {
+        let accounting = Self::accounting(&env)?;
+        if accounting.paused || accounting.shares == 0 {
+            return Ok(0);
+        }
+        let total_assets = Self::total_current(&env, &accounting)?;
+        let liquidity = Self::available_liquidity(env.clone())?;
+        if liquidity <= 0 || total_assets <= 0 {
+            return Ok(0);
+        }
+        if liquidity >= total_assets {
+            return Ok(accounting.shares);
+        }
+        Self::mul_div_ceil(Self::add(liquidity, 1)?, accounting.shares, total_assets)?
+            .checked_sub(1)
+            .ok_or(VaultError::Overflow)
+    }
+
     pub fn total_assets(env: Env) -> Result<i128, VaultError> {
         let accounting = Self::accounting(&env)?;
         Self::total_current(&env, &accounting)
@@ -886,6 +904,83 @@ mod test {
         assert_eq!(client.total_assets(), 0);
         assert_eq!(client.total_shares(), 0);
         assert_eq!(client.available_liquidity(), 0);
+    }
+
+    #[test]
+    fn max_redeemable_is_zero_for_an_empty_vault() {
+        let (env, vault, _, _, _, _) = setup();
+        let client = YieldVaultClient::new(&env, &vault);
+        assert_eq!(client.max_redeemable(), 0);
+    }
+
+    #[test]
+    fn max_redeemable_settles_all_shares_without_yield() {
+        let (env, vault, _, _, alice, _) = setup();
+        let client = YieldVaultClient::new(&env, &vault);
+        client.deposit(&alice, &100);
+        assert_eq!(client.max_redeemable(), 100);
+        assert_eq!(client.redeem(&alice, &client.max_redeemable()), 100);
+        assert_eq!(client.max_redeemable(), 0);
+    }
+
+    #[test]
+    fn max_redeemable_matches_floor_rounding_with_unbacked_yield() {
+        let (env, vault, _, _, alice, _) = setup();
+        let client = YieldVaultClient::new(&env, &vault);
+        client.deposit(&alice, &100);
+        env.ledger().set_timestamp(SIM_YEAR as u64);
+
+        let maximum = client.max_redeemable();
+        assert_eq!(maximum, 93);
+        assert_eq!(client.get_vault_state().last_ts, 0);
+        assert_eq!(
+            client.try_redeem(&alice, &(maximum + 1)),
+            Err(Ok(VaultError::NoLiquidity))
+        );
+        assert_eq!(client.redeem(&alice, &maximum), 100);
+        assert_eq!(client.total_shares(), 7);
+        assert_eq!(client.available_liquidity(), 0);
+        assert_eq!(client.max_redeemable(), 0);
+    }
+
+    #[test]
+    fn max_redeemable_allows_all_shares_when_yield_is_funded() {
+        let (env, vault, asset, _, alice, _) = setup();
+        let client = YieldVaultClient::new(&env, &vault);
+        client.deposit(&alice, &100);
+        env.ledger().set_timestamp(SIM_YEAR as u64);
+        StellarAssetClient::new(&env, &asset).mint(&vault, &8);
+
+        assert_eq!(client.max_redeemable(), 100);
+        assert_eq!(client.redeem(&alice, &client.max_redeemable()), 108);
+    }
+
+    #[test]
+    fn max_redeemable_is_zero_while_paused() {
+        let (env, vault, _, _, alice, _) = setup();
+        let client = YieldVaultClient::new(&env, &vault);
+        client.deposit(&alice, &100);
+        client.pause();
+        assert_eq!(client.max_redeemable(), 0);
+        client.unpause();
+        assert_eq!(client.max_redeemable(), 100);
+    }
+
+    #[test]
+    fn max_redeemable_handles_large_i128_amounts_without_intermediate_overflow() {
+        let (env, vault, asset, _, alice, _) = setup();
+        let client = YieldVaultClient::new(&env, &vault);
+        StellarAssetClient::new(&env, &asset).mint(&alice, &(i128::MAX - 1_000_000));
+        client.deposit(&alice, &(i128::MAX / 2));
+        env.ledger().set_timestamp(SIM_YEAR as u64);
+
+        let maximum = client.max_redeemable();
+        let liquidity = client.available_liquidity();
+        assert!(maximum > 0);
+        assert!(maximum < client.total_shares());
+        assert!(client.convert_to_assets(&maximum) <= liquidity);
+        assert!(client.convert_to_assets(&(maximum + 1)) > liquidity);
+        assert!(client.redeem(&alice, &maximum) <= liquidity);
     }
 
     #[test]

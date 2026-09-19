@@ -40,3 +40,5 @@ export const MAX_VAULT_NAME_LENGTH = 32;
 
 /** Longest accepted vault symbol, in characters. */
 export const MAX_VAULT_SYMBOL_LENGTH = 32;
+
+export const MAX_REDEEMABLE_METHOD = 'max_redeemable' as const;

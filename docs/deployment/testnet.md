@@ -110,6 +110,12 @@ unauthenticated — the first caller to reach a freshly deployed instance become
 vault's admin, so a deployment should be initialized in the same breath as its
 creation, as this deployment was.
 
+## Redemption sizing in the source revision
+
+The source contract now provides `max_redeemable`, exposed as `YieldVaultClient.maxRedeemable()`. It calculates the exact current-ledger share ceiling from actual token liquidity, including redemption's floor rounding. Use the lesser of this value and the holder's share balance, and allow for time or liquidity changes before submission; the view reserves nothing and supplies no automatic safety margin.
+
+The historical deployments and verification above are unchanged and do not establish that this new view is deployed. Redeploy the updated contract before calling it. Local native-contract and stub-RPC tests are not a live Testnet verification.
+
 ## Reproducing
 
 ```bash
