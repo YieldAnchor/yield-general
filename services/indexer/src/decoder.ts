@@ -72,6 +72,9 @@ export function decodeVaultEvent(
       const [assetsValue, sharesValue] = asItems(payload);
       assets = asBigInt(assetsValue);
       shares = asBigInt(sharesValue);
+      if (assets === null || shares === null) {
+        return null;
+      }
       break;
     }
     case 'share_mint':
