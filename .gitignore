@@ -9,6 +9,8 @@
 # Rust
 **/target/
 *.rs.bk
+# Generated ledger snapshots from Soroban testutils, not reviewed source fixtures.
+contracts/**/test_snapshots/
 
 # Node
 node_modules/
