@@ -133,7 +133,7 @@ Phase 2 implements the observation and persistence path:
 - `repositories/vault-repository.ts` upserts vault metadata and appends decoded events, deduplicating on the Soroban event id so a replay is idempotent.
 - `config.ts` reads the RPC, contract, and Supabase configuration.
 
-Still planned: a separate processor/handler split, reconciliation, and stronger replay guarantees. The watcher also retains a scaffold-only `pool_snapshots` write that the existing API route and dashboard still consume; replacing it with real vault state requires contract state reads (Phase 5).
+Still planned: a separate processor/handler split, reconciliation, and stronger replay guarantees. The watcher no longer writes fabricated TVL or APY into `pool_snapshots`; new databases receive no pool measurements until a real state reader is implemented (Phase 5). Existing API/dashboard scaffolds and their fallback data are unchanged. Historical snapshot rows are not deleted automatically; operators must identify and remove known placeholder data separately. Simulated vault accounting must not be presented as token-backed TVL.
 
 ## Frontend Architecture
 

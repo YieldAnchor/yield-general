@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Server, type Api } from '@stellar/stellar-sdk/rpc';
 import {
-  DATABASE_TABLES,
   INDEXER_DEFAULTS,
   INDEXER_EVENTS_STREAM,
 } from '@yieldanchor/constants';
@@ -66,23 +65,6 @@ async function projectEvents(
     }
   }
   await insertVaultEvents(supabase, events);
-}
-
-/**
- * Scaffold-only behaviour retained from the Phase 0 poller: the read API and
- * web dashboard still consume `pool_snapshots`. Replacing this with real vault
- * state requires contract state reads, which are Phase 5 work.
- */
-async function recordScaffoldSnapshot(supabase: SupabaseClient): Promise<void> {
-  const tvl = Math.floor(Math.random() * 10_000_000) / 100;
-  const dynamicApy = (5 + Math.random() * 5).toFixed(2);
-  await supabase.from(DATABASE_TABLES.poolSnapshots).insert([
-    {
-      tvl,
-      dynamic_apy: Number(dynamicApy),
-      timestamp: new Date().toISOString(),
-    },
-  ]);
 }
 
 export async function startWatcher(): Promise<void> {
@@ -170,10 +152,6 @@ export async function startWatcher(): Promise<void> {
         console.log(
           `Persisted ${decoded.length} vault event(s) through ledger ${observedLedger}.`,
         );
-      }
-
-      if (supabase) {
-        await recordScaffoldSnapshot(supabase);
       }
     } catch (error) {
       console.error('Poller error', error);
