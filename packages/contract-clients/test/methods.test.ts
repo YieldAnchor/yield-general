@@ -32,11 +32,14 @@ describe('VAULT_METHODS', () => {
     }
   });
 
-  it('covers the whole contract surface with no local-only names', () => {
+  it('covers all callable methods without exposing the host-only constructor', () => {
     expect(declaredMethods.size).toBeGreaterThan(0);
-    expect([...declaredMethods].sort()).toEqual(
-      [...Object.values(VAULT_METHODS)].sort(),
-    );
+    expect(declaredMethods).toContain('__constructor');
+    expect(
+      [...declaredMethods]
+        .filter((method) => method !== '__constructor')
+        .sort(),
+    ).toEqual([...Object.values(VAULT_METHODS)].sort());
   });
 
   it('names every write method explicitly', () => {

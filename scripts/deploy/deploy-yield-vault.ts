@@ -88,6 +88,7 @@ async function main(): Promise<void> {
   const deployed = await deployVaultContract({
     wasm,
     deployer,
+    admin,
     network: settings.network,
     rpcUrl: settings.rpcUrl,
   });

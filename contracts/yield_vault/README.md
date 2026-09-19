@@ -15,6 +15,25 @@ Implemented in this phase:
 - Vault state, initialization, pause, balance, conversion, share-price, and liquidity read methods.
 - Initialization, deposit, withdrawal, share mint/burn, yield, and pause events.
 
+## Initialization authority
+
+New deployments require Soroban protocol 22 or later. The `__constructor(admin)`
+argument fixes the intended administrator during contract creation, which is
+authorized by the deployer. Both deployment scripts pass `ADMIN_ADDRESS`, defaulting
+to the deployer's address. The TypeScript deployment helpers accept the same choice
+as an optional `admin` argument.
+
+The public `initialize` arguments are unchanged. Initialization requires both a match
+with the constructor-bound administrator and that administrator's authorization.
+A front-runner cannot install itself even if it signs its own call, and cannot
+initialize on behalf of the intended admin without authorization. Repeated
+initialization still returns `AlreadyInit`.
+
+If `ADMIN_ADDRESS` differs from the deployer, that administrator must separately
+authorize initialization; the deployer-only scripts cannot sign on its behalf.
+This change requires redeployment and does not modify existing contracts. It is
+not compatible with creating the new wasm without its constructor argument.
+
 ## Simulated yield warning
 
 The contract includes a deterministic simple-interest simulation at `8.00%` APR, derived only from Soroban ledger timestamps. This is enabled solely to support Phase 1 Testnet development and is exposed through the `simulation` field in `VaultState`.

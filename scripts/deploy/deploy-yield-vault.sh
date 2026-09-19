@@ -101,7 +101,7 @@ fi
 echo "  stellar-cli: $(stellar --version | head -1)"
 
 # Build directly through cargo rather than `stellar contract build`: the
-# contract pins soroban-sdk 21.7 and `make contract-build` is already the
+# contract uses soroban-sdk 22 and `make contract-build` is already the
 # canonical local build, so both paths produce byte-identical wasm.
 cargo build --manifest-path "$MANIFEST" --target wasm32-unknown-unknown --release
 
@@ -170,7 +170,8 @@ echo "════════════════════════�
 DEPLOY_OUTPUT="$(stellar contract deploy \
   --wasm "$WASM_OUT" \
   --source "$DEPLOYER_IDENTITY" \
-  "${NET_ARGS[@]}" 2>/tmp/deploy_stderr.log)"
+  "${NET_ARGS[@]}" \
+  -- --admin "$ADMIN_ADDRESS" 2>/tmp/deploy_stderr.log)"
 
 # Portable extraction (-oE rather than -oP): Testnet contract IDs are 56
 # characters and start with 'C'.

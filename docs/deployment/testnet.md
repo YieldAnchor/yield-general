@@ -10,6 +10,9 @@ below.
 
 ## Current deployment
 
+This record describes the September 16 deployment, not the constructor-bound
+contract revision described below. No new on-chain deployment is recorded here.
+
 |                    |                                                                                              |
 | ------------------ | -------------------------------------------------------------------------------------------- |
 | Contract           | `CB4RKPI55DQOZUPQGVOO4ZUGZ7EPVUZZTR6D7F7F7CYM5OFWOMC3J2IA`                                   |
@@ -105,10 +108,24 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model.
+
+## Initialization protection for new deployments
+
+The source contract now binds the intended administrator in `__constructor(admin)`
+during creation (Soroban protocol 22 or later). `initialize` requires that same
+administrator and its authorization. A caller signing for its own address cannot
+capture the instance during a gap between creation and initialization. An already
+initialized instance still rejects every subsequent initialization with `AlreadyInit`.
+
+Both deployment scripts pass `ADMIN_ADDRESS` to the constructor, defaulting to the
+deployer. The TypeScript `createVaultContract` and `deployVaultContract` helpers use
+the optional `admin` argument for the same purpose. A different administrator needs
+its own initialization authorization; the scripts only hold the deployer's signer.
+
+Existing deployed wasm and the historical checks above are unchanged. Redeploy the
+new wasm with its constructor argument to obtain this guarantee. Local contract and
+mocked-RPC tests do not establish a successful live Testnet deployment.
 
 ## Reproducing
 

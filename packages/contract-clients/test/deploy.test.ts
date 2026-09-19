@@ -156,6 +156,14 @@ function invokedMethod(tx: Transaction): string {
   }
 }
 
+function constructorArgs(tx: Transaction): xdr.ScVal[] {
+  const [operation] = tx.operations;
+  if (!operation || operation.type !== 'invokeHostFunction') {
+    throw new Error(`Expected invokeHostFunction, got ${operation?.type}`);
+  }
+  return operation.func.createContractV2().constructorArgs();
+}
+
 describe('localSigner', () => {
   it('signs for the configured passphrase and reports the signer', async () => {
     const keypair = Keypair.random();
@@ -269,6 +277,40 @@ describe('createVaultContract', () => {
     });
 
     expect(result.contractId).toBe(CONTRACT);
+    expect(constructorArgs(server.sent[0] as Transaction)).toEqual([
+      nativeToScVal(DEPLOYER.publicKey(), { type: 'address' }),
+    ]);
+  });
+
+  it('binds an explicit admin at creation instead of the deployer', async () => {
+    const admin = Keypair.random().publicKey();
+    const server = new StubServer({
+      retvals: [nativeToScVal(CONTRACT, { type: 'address' })],
+    });
+
+    await createVaultContract({
+      ...context(server),
+      wasmHash: WASM_HASH,
+      admin,
+    });
+
+    expect(constructorArgs(server.sent[0] as Transaction)).toEqual([
+      nativeToScVal(admin, { type: 'address' }),
+    ]);
+  });
+
+  it('rejects an invalid admin before simulation or submission', async () => {
+    const server = new StubServer({ retvals: [] });
+
+    await expect(
+      createVaultContract({
+        ...context(server),
+        wasmHash: WASM_HASH,
+        admin: 'not-an-address',
+      }),
+    ).rejects.toThrow();
+    expect(server.simulated).toHaveLength(0);
+    expect(server.sent).toHaveLength(0);
   });
 
   it('rejects a wasm hash of the wrong length before spending a transaction', async () => {
@@ -351,6 +393,29 @@ describe('deployVaultContract', () => {
     expect(invokedMethod(server.sent[1] as Transaction)).toBe(
       'create_contract',
     );
+    expect(constructorArgs(server.sent[1] as Transaction)).toEqual([
+      nativeToScVal(DEPLOYER.publicKey(), { type: 'address' }),
+    ]);
+  });
+
+  it('forwards an explicit admin through the upload and create flow', async () => {
+    const admin = Keypair.random().publicKey();
+    const server = new StubServer({
+      retvals: [
+        xdr.ScVal.scvBytes(WASM_HASH),
+        nativeToScVal(CONTRACT, { type: 'address' }),
+      ],
+    });
+
+    await deployVaultContract({
+      ...context(server),
+      wasm: Buffer.alloc(64, 1),
+      admin,
+    });
+
+    expect(constructorArgs(server.sent[1] as Transaction)).toEqual([
+      nativeToScVal(admin, { type: 'address' }),
+    ]);
   });
 
   it('does not attempt creation when the upload fails', async () => {

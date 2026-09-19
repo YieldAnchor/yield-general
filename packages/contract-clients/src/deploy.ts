@@ -32,7 +32,7 @@ import {
  * contract instance from its hash — followed by the ordinary `initialize` call
  * that {@link YieldVaultClient} already builds. This module owns the first two
  * steps so the same code path serves the deploy script, CI, and any future
- * tooling; nothing here is vault-specific beyond the naming.
+ * tooling. Creation binds the vault's intended admin through its constructor.
  *
  * The `YieldVaultClient` deliberately refuses to hold a secret key. Deployment
  * is the one place that cannot avoid one, so it is kept separate, explicitly
@@ -282,6 +282,7 @@ export async function createVaultContract(
   context: DeployContext & {
     wasmHash: Buffer | Uint8Array;
     salt?: Buffer | Uint8Array;
+    admin?: string;
   },
 ): Promise<CreatedContract> {
   const resolved = resolveContext(context);
@@ -308,6 +309,9 @@ export async function createVaultContract(
     Operation.createCustomContract({
       address: Address.fromString(resolved.source),
       wasmHash,
+      constructorArgs: [
+        Address.fromString(context.admin ?? resolved.source).toScVal(),
+      ],
       ...(context.salt === undefined
         ? {}
         : { salt: Buffer.from(context.salt) }),
@@ -329,6 +333,7 @@ export async function deployVaultContract(
   context: DeployContext & {
     wasm: Buffer | Uint8Array;
     salt?: Buffer | Uint8Array;
+    admin?: string;
   },
 ): Promise<DeployedVault> {
   const uploaded = await uploadContractWasm(context);

@@ -82,6 +82,7 @@ pub struct VaultState {
 #[contracttype]
 #[derive(Clone)]
 enum DataKey {
+    InitialAdmin,
     Config,
     Accounting,
     Shares(Address),
@@ -92,6 +93,10 @@ pub struct YieldVault;
 
 #[contractimpl]
 impl YieldVault {
+    pub fn __constructor(env: Env, admin: Address) {
+        env.storage().instance().set(&DataKey::InitialAdmin, &admin);
+    }
+
     /// Initialize the vault once with an arbitrary SEP-41-compatible asset.
     ///
     /// Phase 1's simulated yield is deliberately always enabled. This
@@ -107,6 +112,14 @@ impl YieldVault {
     ) -> Result<(), VaultError> {
         if env.storage().instance().has(&DataKey::Config) {
             return Err(VaultError::AlreadyInit);
+        }
+        if env
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::InitialAdmin)
+            != Some(admin.clone())
+        {
+            return Err(VaultError::BadAdmin);
         }
         if name.is_empty() || name.len() > 32 {
             return Err(VaultError::BadName);
@@ -664,9 +677,9 @@ mod test {
 
     use super::*;
     use soroban_sdk::{
-        testutils::{Address as _, Ledger},
+        testutils::{Address as _, Ledger, MockAuth, MockAuthInvoke},
         token::StellarAssetClient,
-        Address, Env, String,
+        Address, Env, IntoVal, String,
     };
 
     fn setup() -> (Env, Address, Address, Address, Address, Address) {
@@ -678,7 +691,7 @@ mod test {
         let asset = env
             .register_stellar_asset_contract_v2(admin.clone())
             .address();
-        let vault = env.register_contract(None, YieldVault);
+        let vault = env.register(YieldVault, (admin.clone(),));
         let client = YieldVaultClient::new(&env, &vault);
         client.initialize(
             &admin,
@@ -692,6 +705,88 @@ mod test {
         asset_admin.mint(&alice, &1_000_000);
         asset_admin.mint(&bob, &1_000_000);
         (env, vault, asset, admin, alice, bob)
+    }
+
+    #[test]
+    fn self_signed_caller_cannot_capture_fresh_vault() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let attacker = Address::generate(&env);
+        let asset = Address::generate(&env);
+        let vault = env.register(YieldVault, (admin.clone(),));
+        let client = YieldVaultClient::new(&env, &vault);
+        let name = String::from_str(&env, "Captured Vault");
+        let symbol = String::from_str(&env, "CAP");
+
+        env.mock_auths(&[MockAuth {
+            address: &attacker,
+            invoke: &MockAuthInvoke {
+                contract: &vault,
+                fn_name: "initialize",
+                args: (
+                    attacker.clone(),
+                    asset.clone(),
+                    name.clone(),
+                    symbol.clone(),
+                    6u32,
+                )
+                    .into_val(&env),
+                sub_invokes: &[],
+            },
+        }]);
+
+        assert_eq!(
+            client.try_initialize(&attacker, &asset, &name, &symbol, &6),
+            Err(Ok(VaultError::BadAdmin))
+        );
+        assert!(!client.is_initialized());
+
+        env.mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &vault,
+                fn_name: "initialize",
+                args: (
+                    admin.clone(),
+                    asset.clone(),
+                    name.clone(),
+                    symbol.clone(),
+                    6u32,
+                )
+                    .into_val(&env),
+                sub_invokes: &[],
+            },
+        }]);
+        client.initialize(&admin, &asset, &name, &symbol, &6);
+        assert_eq!(client.admin(), admin);
+        assert_eq!(
+            client.try_initialize(&attacker, &asset, &name, &symbol, &6),
+            Err(Ok(VaultError::AlreadyInit))
+        );
+    }
+
+    #[test]
+    fn constructor_cannot_be_invoked_to_replace_initial_admin() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let attacker = Address::generate(&env);
+        let vault = env.register(YieldVault, (admin.clone(),));
+
+        assert!(env
+            .try_invoke_contract::<(), soroban_sdk::InvokeError>(
+                &vault,
+                &soroban_sdk::Symbol::new(&env, "__constructor"),
+                (attacker,).into_val(&env),
+            )
+            .is_err());
+        env.as_contract(&vault, || {
+            assert_eq!(
+                env.storage()
+                    .instance()
+                    .get::<_, Address>(&DataKey::InitialAdmin),
+                Some(admin)
+            );
+        });
     }
 
     #[test]
@@ -733,7 +828,7 @@ mod test {
         let fresh_asset = fresh
             .register_stellar_asset_contract_v2(fresh_admin.clone())
             .address();
-        let fresh_vault = fresh.register_contract(None, YieldVault);
+        let fresh_vault = fresh.register(YieldVault, (fresh_admin.clone(),));
         let fresh_client = YieldVaultClient::new(&fresh, &fresh_vault);
         assert!(!fresh_client.is_initialized());
         assert_eq!(
@@ -983,7 +1078,7 @@ mod test {
         let fresh_asset = fresh
             .register_stellar_asset_contract_v2(fresh_admin.clone())
             .address();
-        let fresh_vault = fresh.register_contract(None, YieldVault);
+        let fresh_vault = fresh.register(YieldVault, (fresh_admin.clone(),));
         let fresh_client = YieldVaultClient::new(&fresh, &fresh_vault);
         assert!(fresh_client
             .try_initialize(
