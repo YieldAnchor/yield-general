@@ -105,10 +105,10 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model. `initialize` requires
+the designated administrator's authorization (`admin.require_auth()`), preventing
+unauthorized third parties from front-running and capturing admin control of a freshly
+deployed instance.
 
 ## Reproducing
 

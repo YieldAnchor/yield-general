@@ -6,7 +6,7 @@ This crate contains the Phase 1 core YieldVault contract.
 
 Implemented in this phase:
 
-- One-time initialization with admin, arbitrary underlying token, name, symbol, and decimals.
+- One-time authenticated initialization requiring the designated admin's signature, with arbitrary underlying token, name, symbol, and decimals.
 - Asset deposits with proportional vault-share minting.
 - Share redemption and asset withdrawal.
 - Integer-only accounting with checked arithmetic and explicit floor/ceiling rounding.
