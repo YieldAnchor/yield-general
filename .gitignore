@@ -9,6 +9,7 @@
 # Rust
 **/target/
 *.rs.bk
+**/test_snapshots/
 
 # Node
 node_modules/
