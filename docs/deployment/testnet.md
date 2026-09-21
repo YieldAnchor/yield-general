@@ -10,6 +10,8 @@ below.
 
 ## Current deployment
 
+> Diagnostic duplicate-PR test only; no functional change.
+
 |                    |                                                                                              |
 | ------------------ | -------------------------------------------------------------------------------------------- |
 | Contract           | `CB4RKPI55DQOZUPQGVOO4ZUGZ7EPVUZZTR6D7F7F7CYM5OFWOMC3J2IA`                                   |
