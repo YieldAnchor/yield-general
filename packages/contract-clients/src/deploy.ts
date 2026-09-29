@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import {
   Account,
   Address,
@@ -76,6 +78,11 @@ export interface UploadedWasm {
 export interface CreatedContract {
   /** The new contract's `C...` address. */
   contractId: string;
+  /**
+   * Hex-encoded 32-byte salt the contract was created with. `initialize`
+   * needs it, together with the deployer, to prove who created the instance.
+   */
+  salt: string;
   /** Transaction hash of the creation. */
   hash: string;
   ledger: number | null;
@@ -276,7 +283,9 @@ export async function uploadContractWasm(
  * Create a contract instance from an uploaded wasm hash.
  *
  * The address is derived from the deployer plus the salt, so passing a fixed
- * `salt` yields a predictable contract address.
+ * `salt` yields a predictable contract address. Without one, a random salt is
+ * generated here rather than by the SDK so that it can be returned: the vault's
+ * `initialize` requires it.
  */
 export async function createVaultContract(
   context: DeployContext & {
@@ -292,12 +301,13 @@ export async function createVaultContract(
       'create_contract',
     );
   }
-  if (
-    context.salt !== undefined &&
-    Buffer.from(context.salt).length !== SALT_LENGTH
-  ) {
+  const salt =
+    context.salt === undefined
+      ? randomBytes(SALT_LENGTH)
+      : Buffer.from(context.salt);
+  if (salt.length !== SALT_LENGTH) {
     throw new VaultClientError(
-      `Expected a ${SALT_LENGTH}-byte salt, got ${Buffer.from(context.salt).length} bytes`,
+      `Expected a ${SALT_LENGTH}-byte salt, got ${salt.length} bytes`,
       'create_contract',
     );
   }
@@ -308,14 +318,13 @@ export async function createVaultContract(
     Operation.createCustomContract({
       address: Address.fromString(resolved.source),
       wasmHash,
-      ...(context.salt === undefined
-        ? {}
-        : { salt: Buffer.from(context.salt) }),
+      salt,
     }),
   );
 
   return {
     contractId: contractIdSchema.parse(value),
+    salt: salt.toString('hex'),
     hash,
     ledger,
   };

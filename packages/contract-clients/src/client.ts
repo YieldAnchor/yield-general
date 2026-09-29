@@ -326,6 +326,8 @@ export class YieldVaultClient {
     return this.build(
       VAULT_METHODS.initialize,
       [
+        this.addressArg(parsed.deployer),
+        xdr.ScVal.scvBytes(Buffer.from(parsed.salt, 'hex')),
         this.addressArg(parsed.admin),
         this.addressArg(parsed.asset),
         nativeToScVal(parsed.name, { type: 'string' }),

@@ -9,6 +9,7 @@ import {
   decimalsSchema,
   positiveBaseUnitAmountSchema,
   stellarAccountIdSchema,
+  stellarAddressSchema,
 } from './stellar.js';
 
 /**
@@ -42,8 +43,21 @@ export const vaultMetadataSchema = z.object({
   decimals: decimalsSchema,
 });
 
-/** `initialize(admin, asset, name, symbol, decimals)`. */
+/** The 32-byte salt a contract instance was created with, hex-encoded. */
+export const contractSaltSchema = z
+  .string()
+  .regex(/^[0-9a-fA-F]{64}$/, 'Salt must be 32 bytes of hex');
+
+/**
+ * `initialize(deployer, salt, admin, asset, name, symbol, decimals)`.
+ *
+ * `deployer` and `salt` must be the pair that created the vault instance; the
+ * contract re-derives its own address from them and requires the deployer's
+ * signature.
+ */
 export const initializeVaultInputSchema = vaultMetadataSchema.extend({
+  deployer: stellarAddressSchema,
+  salt: contractSaltSchema,
   admin: stellarAccountIdSchema,
   asset: contractIdSchema,
 });

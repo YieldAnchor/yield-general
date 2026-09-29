@@ -156,6 +156,17 @@ function invokedMethod(tx: Transaction): string {
   }
 }
 
+/** The salt a submitted create-contract transaction derives its address from. */
+function createdWithSalt(tx: Transaction): Buffer {
+  const [operation] = tx.operations;
+  if (!operation || operation.type !== 'invokeHostFunction') {
+    throw new Error(`Expected invokeHostFunction, got ${operation?.type}`);
+  }
+  return Buffer.from(
+    operation.func.createContractV2().contractIdPreimage().fromAddress().salt(),
+  );
+}
+
 describe('localSigner', () => {
   it('signs for the configured passphrase and reports the signer', async () => {
     const keypair = Keypair.random();
@@ -298,6 +309,23 @@ describe('createVaultContract', () => {
     expect(server.sent).toHaveLength(0);
   });
 
+  it('rejects a salt one byte short or long', async () => {
+    const server = new StubServer({
+      retvals: [nativeToScVal(CONTRACT, { type: 'address' })],
+    });
+
+    for (const length of [31, 33]) {
+      await expect(
+        createVaultContract({
+          ...context(server),
+          wasmHash: WASM_HASH,
+          salt: Buffer.alloc(length, 1),
+        }),
+      ).rejects.toThrow(/32-byte salt/);
+    }
+    expect(server.sent).toHaveLength(0);
+  });
+
   it('accepts a 32-byte salt', async () => {
     const server = new StubServer({
       retvals: [nativeToScVal(CONTRACT, { type: 'address' })],
@@ -310,6 +338,23 @@ describe('createVaultContract', () => {
     });
 
     expect(result.contractId).toBe(CONTRACT);
+  });
+
+  it('generates and returns the salt when none is given', async () => {
+    const server = new StubServer({
+      retvals: [nativeToScVal(CONTRACT, { type: 'address' })],
+    });
+
+    const result = await createVaultContract({
+      ...context(server),
+      wasmHash: WASM_HASH,
+    });
+
+    // `initialize` needs the exact salt the network used.
+    expect(result.salt).toMatch(/^[0-9a-f]{64}$/);
+    expect(createdWithSalt(server.sent[0] as Transaction)).toEqual(
+      Buffer.from(result.salt, 'hex'),
+    );
   });
 
   it('rejects a return value that is not a contract id', async () => {

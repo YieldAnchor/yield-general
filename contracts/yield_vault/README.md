@@ -15,6 +15,16 @@ Implemented in this phase:
 - Vault state, initialization, pause, balance, conversion, share-price, and liquidity read methods.
 - Initialization, deposit, withdrawal, share mint/burn, yield, and pause events.
 
+## Initialization guarantee
+
+`initialize(deployer, salt, admin, asset, name, symbol, decimals)` can only be completed by the account that created the contract instance:
+
+- The contract re-derives its own address from `deployer` and the 32-byte `salt` used at creation and rejects the call with `BadDeployer` if it does not match.
+- `deployer` must authorize the call, and so must `admin` when it is a different address. Both checks run before the metadata is validated.
+- A second call returns `AlreadyInit`; there is no re-initialization.
+
+A third party that reaches a freshly created instance first therefore cannot install an admin, including one it controls. Keep the creation salt: without it the vault cannot be initialized. Both deploy scripts save it to `scripts/.deploy_salt` as soon as the vault is created.
+
 ## Simulated yield warning
 
 The contract includes a deterministic simple-interest simulation at `8.00%` APR, derived only from Soroban ledger timestamps. This is enabled solely to support Phase 1 Testnet development and is exposed through the `simulation` field in `VaultState`.
