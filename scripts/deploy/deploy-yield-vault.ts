@@ -23,6 +23,7 @@
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 
 import { Asset, rpc } from '@stellar/stellar-sdk';
 
@@ -110,8 +111,16 @@ async function main(): Promise<void> {
     );
   }
 
+  // Persist salt so a later initialize can still prove deployer binding if
+  // this run fails between create and initialize.
+  const saltPath = new URL('../.deploy_salt', import.meta.url);
+  await writeFile(saltPath, `${deployed.salt}\n`, 'utf8');
+  console.log(`  salt    : ${deployed.salt} (saved to scripts/.deploy_salt)`);
+
   const initialized = await client
     .initialize({
+      deployer: deployer.publicKey(),
+      salt: deployed.salt,
       admin,
       asset,
       name: settings.name,

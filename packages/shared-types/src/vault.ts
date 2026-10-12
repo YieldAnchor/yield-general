@@ -96,6 +96,7 @@ export const VAULT_ERROR_MESSAGES: Record<VaultErrorName, string> = {
   Paused: 'The vault is paused; deposits and redemptions are disabled.',
   NotPaused: 'The vault is not paused.',
   RoundEmpty: 'The calculation rounded to zero, which the vault refuses.',
+  BadDeployer: 'Deployer/salt does not match this vault instance.',
 };
 
 /** Describe a contract error code for display, tolerating unknown codes. */

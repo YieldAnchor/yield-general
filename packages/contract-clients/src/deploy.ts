@@ -79,6 +79,11 @@ export interface CreatedContract {
   /** Transaction hash of the creation. */
   hash: string;
   ledger: number | null;
+  /**
+   * Hex-encoded 32-byte salt used at creation. Required later by
+   * `initialize(deployer, salt, ...)` to prove who created the instance.
+   */
+  salt: string;
 }
 
 export interface DeployedVault extends CreatedContract {
@@ -292,12 +297,13 @@ export async function createVaultContract(
       'create_contract',
     );
   }
-  if (
-    context.salt !== undefined &&
-    Buffer.from(context.salt).length !== SALT_LENGTH
-  ) {
+  const salt =
+    context.salt === undefined
+      ? Keypair.random().rawSecretKey()
+      : Buffer.from(context.salt);
+  if (salt.length !== SALT_LENGTH) {
     throw new VaultClientError(
-      `Expected a ${SALT_LENGTH}-byte salt, got ${Buffer.from(context.salt).length} bytes`,
+      `Expected a ${SALT_LENGTH}-byte salt, got ${salt.length} bytes`,
       'create_contract',
     );
   }
@@ -308,9 +314,7 @@ export async function createVaultContract(
     Operation.createCustomContract({
       address: Address.fromString(resolved.source),
       wasmHash,
-      ...(context.salt === undefined
-        ? {}
-        : { salt: Buffer.from(context.salt) }),
+      salt,
     }),
   );
 
@@ -318,6 +322,7 @@ export async function createVaultContract(
     contractId: contractIdSchema.parse(value),
     hash,
     ledger,
+    salt: salt.toString('hex'),
   };
 }
 

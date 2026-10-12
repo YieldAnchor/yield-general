@@ -310,6 +310,7 @@ describe('createVaultContract', () => {
     });
 
     expect(result.contractId).toBe(CONTRACT);
+    expect(result.salt).toBe(Buffer.alloc(32, 2).toString('hex'));
   });
 
   it('rejects a return value that is not a contract id', async () => {

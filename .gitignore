@@ -53,3 +53,5 @@ scripts/.deployer.json
 *.swo
 *.bak
 ~*
+scripts/.deploy_salt
+contracts/yield_vault/test_snapshots/

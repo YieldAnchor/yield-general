@@ -42,8 +42,14 @@ export const vaultMetadataSchema = z.object({
   decimals: decimalsSchema,
 });
 
-/** `initialize(admin, asset, name, symbol, decimals)`. */
+/** `initialize(deployer, salt, admin, asset, name, symbol, decimals)`. */
 export const initializeVaultInputSchema = vaultMetadataSchema.extend({
+  /** Account that created the contract instance. */
+  deployer: stellarAccountIdSchema,
+  /** 32-byte creation salt as 64 hex chars (with or without 0x). */
+  salt: z
+    .string()
+    .regex(/^(0x)?[0-9a-fA-F]{64}$/, 'Salt must be 32 bytes hex-encoded'),
   admin: stellarAccountIdSchema,
   asset: contractIdSchema,
 });
