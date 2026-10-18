@@ -15,6 +15,12 @@ Implemented in this phase:
 - Vault state, initialization, pause, balance, conversion, share-price, and liquidity read methods.
 - Initialization, deposit, withdrawal, share mint/burn, yield, and pause events.
 
+Initialization guarantee: `initialize` requires the chosen admin's own
+signature (`admin.require_auth()`). A caller may propose any admin address,
+but only that admin can authorize installing itself, so a front-runner cannot
+take control of a freshly deployed instance with an admin it does not
+control. Re-initialization still returns `AlreadyInit`.
+
 ## Simulated yield warning
 
 The contract includes a deterministic simple-interest simulation at `8.00%` APR, derived only from Soroban ledger timestamps. This is enabled solely to support Phase 1 Testnet development and is exposed through the `simulation` field in `VaultState`.
