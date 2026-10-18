@@ -32,6 +32,7 @@ set -euo pipefail
 #   VAULT_NAME           vault metadata name             (default: YieldAnchor Vault)
 #   VAULT_SYMBOL         vault metadata symbol           (default: yVAULT)
 #   VAULT_DECIMALS       vault metadata decimals         (default: 7)
+#   DEPLOY_SALT          32-byte creation salt, as hex   (default: random)
 #
 # WARNING: The Phase 1 yield source is a deterministic TESTNET SIMULATION
 # keyed on ledger time. It is NOT real T-Bill or RWA yield and must never be
@@ -55,6 +56,17 @@ ASSET_SPEC="${ASSET_SPEC:-native}"
 VAULT_NAME="${VAULT_NAME:-YieldAnchor Vault}"
 VAULT_SYMBOL="${VAULT_SYMBOL:-yVAULT}"
 VAULT_DECIMALS="${VAULT_DECIMALS:-7}"
+
+# Left empty to generate a random creation salt at deploy time. Set it to
+# redeploy at a known address: the address is derived from the deployer and
+# this salt. Checked here so a bad value stops the run before anything is built
+# or deployed.
+DEPLOY_SALT="${DEPLOY_SALT:-}"
+if [ -n "$DEPLOY_SALT" ] && ! [[ "$DEPLOY_SALT" =~ ^[0-9a-fA-F]{64}$ ]]; then
+  echo "ERROR: DEPLOY_SALT must be exactly 64 hexadecimal characters (32 bytes), got:"
+  echo "       '$DEPLOY_SALT'"
+  exit 1
+fi
 
 # ─── Network arguments ───────────────────────────────────────────────────────
 # Passing `--rpc-url` makes the CLI require an explicit passphrase, so the
@@ -167,8 +179,20 @@ echo "════════════════════════�
 echo "  STEP 4: Deploying WASM to Stellar $NETWORK"
 echo "════════════════════════════════════════════════════════════════════"
 
+# The salt is chosen here rather than by the CLI because `initialize` needs it:
+# the vault re-derives its own address from the deployer and this salt, so
+# only the account that created it can initialize it.
+# `-v` keeps od from collapsing repeated lines into `*`, which would shorten
+# the salt.
+if [ -z "$DEPLOY_SALT" ]; then
+  DEPLOY_SALT="$(od -v -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+else
+  echo "  using DEPLOY_SALT from the environment"
+fi
+
 DEPLOY_OUTPUT="$(stellar contract deploy \
   --wasm "$WASM_OUT" \
+  --salt "$DEPLOY_SALT" \
   --source "$DEPLOYER_IDENTITY" \
   "${NET_ARGS[@]}" 2>/tmp/deploy_stderr.log)"
 
@@ -185,6 +209,15 @@ if [ -z "$CONTRACT_ID" ]; then
   exit 1
 fi
 echo "  ✓ deployed: $CONTRACT_ID"
+echo "  salt=$DEPLOY_SALT"
+
+# Keep the salt before initializing so the vault can still be initialized if
+# this run fails from here on.
+DEPLOY_SALT_FILE="$ROOT_DIR/scripts/.deploy_salt"
+printf 'CONTRACT_ID=%s\n' "$CONTRACT_ID" >"$DEPLOY_SALT_FILE"
+printf 'DEPLOYER_ADDRESS=%s\n' "$DEPLOYER_ADDRESS" >>"$DEPLOY_SALT_FILE"
+printf 'DEPLOY_SALT=%s\n' "$DEPLOY_SALT" >>"$DEPLOY_SALT_FILE"
+echo "  keep the salt: initialize needs it (saved in scripts/.deploy_salt)"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════════"
@@ -197,6 +230,8 @@ stellar contract invoke \
   "${NET_ARGS[@]}" \
   -- \
   initialize \
+  --deployer "$DEPLOYER_ADDRESS" \
+  --salt "$DEPLOY_SALT" \
   --admin "$ADMIN_ADDRESS" \
   --asset "$ASSET_CONTRACT_ID" \
   --name "$VAULT_NAME" \

@@ -32,6 +32,11 @@ export const WASM_PATH = resolve(
 export const KEY_FILE = resolve(ROOT_DIR, 'scripts', '.deployer.json');
 /** Last deployment record written by `deploy-yield-vault.ts`. */
 export const CONTRACT_ID_FILE = resolve(ROOT_DIR, 'scripts', '.contract_id');
+/**
+ * Creation salt of the last vault created, written before `initialize` so the
+ * vault can still be initialized if that step fails or is done later.
+ */
+export const DEPLOY_SALT_FILE = resolve(ROOT_DIR, 'scripts', '.deploy_salt');
 
 const DEFAULT_FRIEND_BOT = 'https://friendbot.stellar.org';
 

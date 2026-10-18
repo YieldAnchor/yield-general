@@ -441,7 +441,10 @@ describe('transaction builders', () => {
   });
 
   it('builds initialize with the configured metadata', async () => {
+    const salt = Buffer.alloc(32, 5);
     const built = await clientWith(server()).initialize({
+      deployer: USER,
+      salt: salt.toString('hex'),
       admin: ADMIN,
       asset: ASSET,
       name: 'YieldAnchor Vault',
@@ -450,10 +453,34 @@ describe('transaction builders', () => {
     });
 
     expect(invokedMethod(built.transaction)).toBe('initialize');
-    expect(scValToNative(invokedArgs(built.transaction)[2])).toBe(
+    expect(scValToNative(invokedArgs(built.transaction)[0])).toBe(USER);
+    expect(Buffer.from(invokedArgs(built.transaction)[1].bytes())).toEqual(
+      salt,
+    );
+    expect(scValToNative(invokedArgs(built.transaction)[4])).toBe(
       'YieldAnchor Vault',
     );
-    expect(scValToNative(invokedArgs(built.transaction)[4])).toBe(6);
+    expect(scValToNative(invokedArgs(built.transaction)[6])).toBe(6);
+  });
+
+  it('rejects a malformed salt before touching the network', async () => {
+    const stub = server();
+    const client = clientWith(stub);
+
+    for (const salt of ['05'.repeat(31), '05'.repeat(33), 'zz'.repeat(32)]) {
+      await expect(
+        client.initialize({
+          deployer: USER,
+          salt,
+          admin: ADMIN,
+          asset: ASSET,
+          name: 'YieldAnchor Vault',
+          symbol: 'yVAULT',
+          decimals: 6,
+        }),
+      ).rejects.toThrow(/32 bytes of hex/);
+    }
+    expect(stub.simulated).toHaveLength(0);
   });
 
   it('surfaces a contract rejection raised during simulation', async () => {

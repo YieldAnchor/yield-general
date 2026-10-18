@@ -36,6 +36,7 @@ import {
 
 import {
   CONTRACT_ID_FILE,
+  DEPLOY_SALT_FILE,
   WASM_PATH,
   ensureFunded,
   loadDeployer,
@@ -94,6 +95,22 @@ async function main(): Promise<void> {
   console.log(`  upload  : ${deployed.uploadHash}`);
   console.log(`  create  : ${deployed.hash}`);
   console.log(`  contract: ${deployed.contractId}`);
+  console.log(`  salt    : ${deployed.salt}`);
+
+  // `initialize` needs the creation salt. Keep it before initializing so the
+  // vault can still be initialized if this run fails from here on.
+  writeFileSync(
+    DEPLOY_SALT_FILE,
+    [
+      `CONTRACT_ID=${deployed.contractId}`,
+      `DEPLOYER_ADDRESS=${deployer.publicKey()}`,
+      `DEPLOY_SALT=${deployed.salt}`,
+      '',
+    ].join('\n'),
+  );
+  console.log(
+    `  keep the salt: initialize needs it (saved in ${DEPLOY_SALT_FILE})`,
+  );
 
   console.log('\n[4/5] initialize');
   const client = new YieldVaultClient({
@@ -110,8 +127,12 @@ async function main(): Promise<void> {
     );
   }
 
+  // The vault only accepts initialization from the account that created it,
+  // proven by the deployer address and the salt used at creation.
   const initialized = await client
     .initialize({
+      deployer: deployer.publicKey(),
+      salt: deployed.salt,
       admin,
       asset,
       name: settings.name,

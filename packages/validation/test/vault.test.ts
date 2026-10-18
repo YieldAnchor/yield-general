@@ -16,6 +16,8 @@ const VAULT = StrKey.encodeContract(Buffer.alloc(32, 4));
 
 describe('initializeVaultInputSchema', () => {
   const valid = {
+    deployer: ADMIN,
+    salt: '07'.repeat(32),
     admin: ADMIN,
     asset: ASSET,
     name: 'YieldAnchor Vault',
@@ -66,6 +68,23 @@ describe('initializeVaultInputSchema', () => {
   it('rejects an admin that is not an account address', () => {
     expect(
       initializeVaultInputSchema.safeParse({ ...valid, admin: ASSET }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a salt that is not 32 bytes', () => {
+    for (const salt of ['07'.repeat(31), '07'.repeat(33)]) {
+      expect(
+        initializeVaultInputSchema.safeParse({ ...valid, salt }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('rejects a salt that is not hex', () => {
+    expect(
+      initializeVaultInputSchema.safeParse({
+        ...valid,
+        salt: 'zz'.repeat(32),
+      }).success,
     ).toBe(false);
   });
 });

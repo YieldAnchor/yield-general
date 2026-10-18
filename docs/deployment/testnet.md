@@ -105,10 +105,35 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model.
+
+**Initialization is bound to the deployer.** `initialize` takes the `deployer` address
+and the 32-byte `salt` the instance was created with, re-derives the contract address
+from them, and rejects the call with `BadDeployer` (code 17) unless it matches this
+contract. The deployer must sign, and a different `admin` must sign too. A third party
+that reaches a freshly created instance first cannot initialize it, even by naming and
+signing for an admin of its own. The contract recorded above was deployed from the
+earlier wasm, which only required the admin's signature; it was initialized in the same
+run as its creation.
+
+**Keep the creation salt.** A vault cannot be initialized without it. Both deploy
+scripts print the salt as soon as the vault is created and write it, with the contract
+id and deployer, to `scripts/.deploy_salt` before calling `initialize`. If a run fails
+after creation, or initialization is done later, initialize with those values, signed
+by the deployer:
+
+```bash
+stellar contract invoke --id "$CONTRACT_ID" --source deployer --network testnet -- \
+  initialize --deployer "$DEPLOYER_ADDRESS" --salt "$DEPLOY_SALT" \
+  --admin "$ADMIN_ADDRESS" --asset "$ASSET_CONTRACT_ID" \
+  --name "YieldAnchor Vault" --symbol yVAULT --decimals 7
+```
+
+If `scripts/.deploy_salt` is lost, the salt can be recovered from the vault's creation
+transaction (the TypeScript script prints its hash as `create`): its
+`InvokeHostFunction` operation creates the contract from an address preimage that holds
+the deployer and the 32-byte salt, visible in any explorer or in the decoded
+transaction envelope.
 
 ## Redemption sizing in the source revision
 
