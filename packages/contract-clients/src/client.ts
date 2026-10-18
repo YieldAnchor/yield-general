@@ -330,9 +330,14 @@ export class YieldVaultClient {
     input: InitializeVaultInput,
   ): Promise<VaultTransaction<null>> {
     const parsed = initializeVaultInputSchema.parse(input);
+    const saltHex = parsed.salt.startsWith('0x')
+      ? parsed.salt.slice(2)
+      : parsed.salt;
     return this.build(
       VAULT_METHODS.initialize,
       [
+        this.addressArg(parsed.deployer),
+        xdr.ScVal.scvBytes(Buffer.from(saltHex, 'hex')),
         this.addressArg(parsed.admin),
         this.addressArg(parsed.asset),
         nativeToScVal(parsed.name, { type: 'string' }),

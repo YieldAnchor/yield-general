@@ -32,6 +32,7 @@ set -euo pipefail
 #   VAULT_NAME           vault metadata name             (default: YieldAnchor Vault)
 #   VAULT_SYMBOL         vault metadata symbol           (default: yVAULT)
 #   VAULT_DECIMALS       vault metadata decimals         (default: 7)
+#   DEPLOY_SALT          optional 64-hex creation salt   (default: random)
 #
 # WARNING: The Phase 1 yield source is a deterministic TESTNET SIMULATION
 # keyed on ledger time. It is NOT real T-Bill or RWA yield and must never be
@@ -167,9 +168,24 @@ echo "════════════════════════�
 echo "  STEP 4: Deploying WASM to Stellar $NETWORK"
 echo "════════════════════════════════════════════════════════════════════"
 
+# Always pass an explicit salt so initialize can bind this instance to the
+# deployer. Override with DEPLOY_SALT (64 hex chars) to redeploy deterministically.
+if [ -n "${DEPLOY_SALT:-}" ]; then
+  if ! [[ "$DEPLOY_SALT" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "ERROR: DEPLOY_SALT must be exactly 64 hex characters (32 bytes)."
+    exit 1
+  fi
+  SALT_HEX="$DEPLOY_SALT"
+else
+  SALT_HEX="$(openssl rand -hex 32)"
+fi
+echo "$SALT_HEX" > scripts/.deploy_salt
+echo "  ✓ salt=$SALT_HEX (saved to scripts/.deploy_salt)"
+
 DEPLOY_OUTPUT="$(stellar contract deploy \
   --wasm "$WASM_OUT" \
   --source "$DEPLOYER_IDENTITY" \
+  --salt "$SALT_HEX" \
   "${NET_ARGS[@]}" 2>/tmp/deploy_stderr.log)"
 
 # Portable extraction (-oE rather than -oP): Testnet contract IDs are 56
@@ -197,6 +213,8 @@ stellar contract invoke \
   "${NET_ARGS[@]}" \
   -- \
   initialize \
+  --deployer "$DEPLOYER_ADDRESS" \
+  --salt "$SALT_HEX" \
   --admin "$ADMIN_ADDRESS" \
   --asset "$ASSET_CONTRACT_ID" \
   --name "$VAULT_NAME" \

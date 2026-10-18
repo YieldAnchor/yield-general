@@ -105,10 +105,12 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model. `initialize` is bound
+to the deploying account and the creation salt: only that deployer (and the proposed
+admin, when different) can authorize setup, so a front-runner cannot capture admin on
+a freshly created instance. The TypeScript and shell deploy paths pass `deployer` and
+`salt` into `initialize`, and write the salt to `scripts/.deploy_salt` so a later
+initialize can still succeed if the run stops between create and initialize.
 
 ## Redemption sizing in the source revision
 

@@ -16,6 +16,8 @@ const VAULT = StrKey.encodeContract(Buffer.alloc(32, 4));
 
 describe('initializeVaultInputSchema', () => {
   const valid = {
+    deployer: ADMIN,
+    salt: 'abababababababababababababababababababababababababababababababab',
     admin: ADMIN,
     asset: ASSET,
     name: 'YieldAnchor Vault',
@@ -25,6 +27,13 @@ describe('initializeVaultInputSchema', () => {
 
   it('accepts a well-formed initialization', () => {
     expect(initializeVaultInputSchema.parse(valid)).toEqual(valid);
+  });
+
+  it('rejects a malformed creation salt', () => {
+    expect(
+      initializeVaultInputSchema.safeParse({ ...valid, salt: 'deadbeef' })
+        .success,
+    ).toBe(false);
   });
 
   it('rejects an empty name or symbol', () => {
