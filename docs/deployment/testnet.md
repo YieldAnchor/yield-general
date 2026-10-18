@@ -105,10 +105,11 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model. The vault's `initialize` is bound to the deploying account: it takes the deployer address
+and the creation salt, requires the deployer's signature, and rejects any pair that does
+not derive the vault's own address (`BadDeployer`). The Testnet instance recorded above
+was built before that change, so its `initialize` required only the proposed admin's
+signature and it relied on being initialized in the same run as its creation, as it was.
 
 ## Redemption sizing in the source revision
 

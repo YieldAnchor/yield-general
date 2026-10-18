@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, token, Address, Env, String,
+    contract, contracterror, contractimpl, contracttype, token, Address, BytesN, Env, String,
 };
 
 /// Phase 1 uses a deterministic ledger-time simulation instead of a real
@@ -35,6 +35,7 @@ pub enum VaultError {
     Paused = 14,
     NotPaused = 15,
     RoundEmpty = 16,
+    BadDeployer = 17,
 }
 
 #[contracttype]
@@ -94,11 +95,19 @@ pub struct YieldVault;
 impl YieldVault {
     /// Initialize the vault once with an arbitrary SEP-41-compatible asset.
     ///
+    /// The call is bound to the account that created the contract: `deployer`
+    /// and `salt` must derive this contract's address, and `deployer` must
+    /// authorize the call. This closes the window in which a front-runner could
+    /// initialize a freshly created contract with an admin of its choosing.
+    ///
     /// Phase 1's simulated yield is deliberately always enabled. This
     /// contract must only be used on Testnet until a production yield source
     /// is designed, implemented, and reviewed in a later phase.
+    #[allow(clippy::too_many_arguments)]
     pub fn initialize(
         env: Env,
+        deployer: Address,
+        salt: BytesN<32>,
         admin: Address,
         asset: Address,
         name: String,
@@ -108,6 +117,19 @@ impl YieldVault {
         if env.storage().instance().has(&DataKey::Config) {
             return Err(VaultError::AlreadyInit);
         }
+
+        // Only the account that created this contract may initialize it. The
+        // contract address is derived from the deployer address and salt, so a
+        // caller cannot claim a pair that did not create this contract. This
+        // is what stops a front-runner from installing itself as admin.
+        let derived = env
+            .deployer()
+            .with_address(deployer.clone(), salt)
+            .deployed_address();
+        if derived != env.current_contract_address() {
+            return Err(VaultError::BadDeployer);
+        }
+
         if name.is_empty() || name.len() > 32 {
             return Err(VaultError::BadName);
         }
@@ -118,8 +140,12 @@ impl YieldVault {
             return Err(VaultError::BadDecimal);
         }
 
-        // The administrator must authorize assignment of control.
-        admin.require_auth();
+        // The deployer must authorize the call, and so must the administrator
+        // receiving control when that is a different account.
+        deployer.require_auth();
+        if admin != deployer {
+            admin.require_auth();
+        }
 
         let config = Config {
             admin: admin.clone(),
@@ -684,21 +710,38 @@ mod test {
     use soroban_sdk::{
         testutils::{Address as _, Ledger},
         token::StellarAssetClient,
-        Address, Env, String,
+        Address, BytesN, Env, String,
     };
+
+    fn test_salt(env: &Env) -> BytesN<32> {
+        BytesN::from_array(env, &[7; 32])
+    }
+
+    /// Registers the vault at the address a deployer and salt derive, the way
+    /// `create_contract` places a contract on a real network.
+    fn register_derived(env: &Env, deployer: &Address, salt: &BytesN<32>) -> Address {
+        let derived = env
+            .deployer()
+            .with_address(deployer.clone(), salt.clone())
+            .deployed_address();
+        env.register_contract(Some(&derived), YieldVault)
+    }
 
     fn setup() -> (Env, Address, Address, Address, Address, Address) {
         let env = Env::default();
         env.mock_all_auths();
+        let deployer = Address::generate(&env);
         let admin = Address::generate(&env);
         let alice = Address::generate(&env);
         let bob = Address::generate(&env);
         let asset = env
             .register_stellar_asset_contract_v2(admin.clone())
             .address();
-        let vault = env.register_contract(None, YieldVault);
+        let vault = register_derived(&env, &deployer, &test_salt(&env));
         let client = YieldVaultClient::new(&env, &vault);
         client.initialize(
+            &deployer,
+            &test_salt(&env),
             &admin,
             &asset,
             &String::from_str(&env, "YieldAnchor Vault"),
@@ -737,6 +780,8 @@ mod test {
         assert_eq!(
             client.try_initialize(
                 &admin,
+                &test_salt(&env),
+                &admin,
                 &asset,
                 &String::from_str(&env, "Other"),
                 &String::from_str(&env, "OTHER"),
@@ -751,11 +796,14 @@ mod test {
         let fresh_asset = fresh
             .register_stellar_asset_contract_v2(fresh_admin.clone())
             .address();
-        let fresh_vault = fresh.register_contract(None, YieldVault);
+        let fresh_salt = test_salt(&fresh);
+        let fresh_vault = register_derived(&fresh, &fresh_admin, &fresh_salt);
         let fresh_client = YieldVaultClient::new(&fresh, &fresh_vault);
         assert!(!fresh_client.is_initialized());
         assert_eq!(
             fresh_client.try_initialize(
+                &fresh_admin,
+                &fresh_salt,
                 &fresh_admin,
                 &fresh_asset,
                 &String::from_str(&fresh, ""),
@@ -767,6 +815,8 @@ mod test {
         assert_eq!(
             fresh_client.try_initialize(
                 &fresh_admin,
+                &fresh_salt,
+                &fresh_admin,
                 &fresh_asset,
                 &String::from_str(&fresh, "Yield"),
                 &String::from_str(&fresh, ""),
@@ -776,6 +826,8 @@ mod test {
         );
         assert_eq!(
             fresh_client.try_initialize(
+                &fresh_admin,
+                &fresh_salt,
                 &fresh_admin,
                 &fresh_asset,
                 &String::from_str(&fresh, "Yield"),
@@ -791,6 +843,8 @@ mod test {
         assert_eq!(
             fresh_client.try_initialize(
                 &fresh_admin,
+                &fresh_salt,
+                &fresh_admin,
                 &fresh_asset,
                 &String::from_str(&fresh, "123456789012345678901234567890123"),
                 &String::from_str(&fresh, "Y"),
@@ -798,6 +852,115 @@ mod test {
             ),
             Err(Ok(VaultError::BadName))
         );
+    }
+
+    #[test]
+    fn front_runner_cannot_capture_admin_of_a_fresh_vault() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let deployer = Address::generate(&env);
+        let attacker = Address::generate(&env);
+        let admin = Address::generate(&env);
+        let asset = env
+            .register_stellar_asset_contract_v2(admin.clone())
+            .address();
+        let salt = test_salt(&env);
+        let vault = register_derived(&env, &deployer, &salt);
+        let client = YieldVaultClient::new(&env, &vault);
+
+        // The attacker fully authorizes its own call, names itself admin and
+        // claims to be the deployer. Only the real deployer and salt derive
+        // this contract's address, so the claim is rejected.
+        assert_eq!(
+            client.try_initialize(
+                &attacker,
+                &salt,
+                &attacker,
+                &asset,
+                &String::from_str(&env, "YieldAnchor Vault"),
+                &String::from_str(&env, "yVAULT"),
+                &6,
+            ),
+            Err(Ok(VaultError::BadDeployer))
+        );
+        // Naming the real deployer with a guessed salt derives another address.
+        assert_eq!(
+            client.try_initialize(
+                &deployer,
+                &BytesN::from_array(&env, &[9; 32]),
+                &attacker,
+                &asset,
+                &String::from_str(&env, "YieldAnchor Vault"),
+                &String::from_str(&env, "yVAULT"),
+                &6,
+            ),
+            Err(Ok(VaultError::BadDeployer))
+        );
+        assert!(!client.is_initialized());
+
+        // The real deployer can still initialize and may install any admin.
+        client.initialize(
+            &deployer,
+            &salt,
+            &admin,
+            &asset,
+            &String::from_str(&env, "YieldAnchor Vault"),
+            &String::from_str(&env, "yVAULT"),
+            &6,
+        );
+        assert!(client.is_initialized());
+        assert_eq!(client.get_vault_state().admin, admin);
+    }
+
+    #[test]
+    fn initialization_requires_the_deployers_signature() {
+        let env = Env::default();
+        let deployer = Address::generate(&env);
+        let attacker = Address::generate(&env);
+        let asset = env
+            .register_stellar_asset_contract_v2(attacker.clone())
+            .address();
+        let salt = test_salt(&env);
+        let vault = register_derived(&env, &deployer, &salt);
+        let client = YieldVaultClient::new(&env, &vault);
+
+        // The deployer and salt are public once the contract exists, but
+        // without the deployer's signature the call still fails.
+        assert!(client
+            .try_initialize(
+                &deployer,
+                &salt,
+                &attacker,
+                &asset,
+                &String::from_str(&env, "YieldAnchor Vault"),
+                &String::from_str(&env, "yVAULT"),
+                &6,
+            )
+            .is_err());
+        assert!(!client.is_initialized());
+    }
+
+    #[test]
+    fn the_deployer_may_also_be_the_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let deployer = Address::generate(&env);
+        let asset = env
+            .register_stellar_asset_contract_v2(deployer.clone())
+            .address();
+        let salt = test_salt(&env);
+        let vault = register_derived(&env, &deployer, &salt);
+        let client = YieldVaultClient::new(&env, &vault);
+        client.initialize(
+            &deployer,
+            &salt,
+            &deployer,
+            &asset,
+            &String::from_str(&env, "YieldAnchor Vault"),
+            &String::from_str(&env, "yVAULT"),
+            &6,
+        );
+        assert_eq!(client.get_vault_state().admin, deployer);
     }
 
     #[test]
@@ -1078,10 +1241,13 @@ mod test {
         let fresh_asset = fresh
             .register_stellar_asset_contract_v2(fresh_admin.clone())
             .address();
-        let fresh_vault = fresh.register_contract(None, YieldVault);
+        let fresh_salt = test_salt(&fresh);
+        let fresh_vault = register_derived(&fresh, &fresh_admin, &fresh_salt);
         let fresh_client = YieldVaultClient::new(&fresh, &fresh_vault);
         assert!(fresh_client
             .try_initialize(
+                &fresh_admin,
+                &fresh_salt,
                 &fresh_admin,
                 &fresh_asset,
                 &String::from_str(&fresh, "Yield"),
