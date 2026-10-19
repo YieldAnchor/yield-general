@@ -1090,4 +1090,76 @@ mod test {
             )
             .is_err());
     }
+
+    #[test]
+    fn initialize_rejects_front_runner_without_admin_auth() {
+        use soroban_sdk::{
+            testutils::{MockAuth, MockAuthInvoke},
+            vec, IntoVal,
+        };
+
+        let env = Env::default();
+        let intended_admin = Address::generate(&env);
+        let attacker = Address::generate(&env);
+        let asset = env
+            .register_stellar_asset_contract_v2(intended_admin.clone())
+            .address();
+        let vault = env.register_contract(None, YieldVault);
+        let client = YieldVaultClient::new(&env, &vault);
+        let name = String::from_str(&env, "YieldAnchor Vault");
+        let symbol = String::from_str(&env, "yVAULT");
+
+        // Front-runner attacker provides auth only for attacker, attempting to install intended_admin.
+        env.mock_auths(&[MockAuth {
+            address: &attacker,
+            invoke: &MockAuthInvoke {
+                contract: &vault,
+                fn_name: "initialize",
+                args: vec![
+                    &env,
+                    intended_admin.clone().into_val(&env),
+                    asset.clone().into_val(&env),
+                    name.clone().into_val(&env),
+                    symbol.clone().into_val(&env),
+                    6u32.into_val(&env),
+                ],
+                sub_invokes: &[],
+            },
+        }]);
+
+        // Call fails because intended_admin did not authorize the operation.
+        assert!(client
+            .try_initialize(&intended_admin, &asset, &name, &symbol, &6)
+            .is_err());
+        assert!(!client.is_initialized());
+
+        // When intended_admin authorizes the operation, initialization succeeds.
+        env.mock_auths(&[MockAuth {
+            address: &intended_admin,
+            invoke: &MockAuthInvoke {
+                contract: &vault,
+                fn_name: "initialize",
+                args: vec![
+                    &env,
+                    intended_admin.clone().into_val(&env),
+                    asset.clone().into_val(&env),
+                    name.clone().into_val(&env),
+                    symbol.clone().into_val(&env),
+                    6u32.into_val(&env),
+                ],
+                sub_invokes: &[],
+            },
+        }]);
+
+        client.initialize(&intended_admin, &asset, &name, &symbol, &6);
+        assert!(client.is_initialized());
+        assert_eq!(client.admin(), intended_admin);
+
+        // Re-initialization is strictly rejected with AlreadyInit regardless of caller.
+        env.mock_all_auths();
+        assert_eq!(
+            client.try_initialize(&attacker, &asset, &name, &symbol, &6),
+            Err(Ok(VaultError::AlreadyInit))
+        );
+    }
 }
