@@ -105,10 +105,13 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model. `initialize` requires
+the proposed admin's authorization (`admin.require_auth()`), so a front-runner cannot
+install an admin it does not control; it does not bind the deployer, so the holder of
+the admin's signature can still initialize. Confirm that a deployed wasm includes this
+check before relying on it, and initialize promptly after creation. The deployment recorded
+above predates this check (its wasm hash is listed above); redeploy the current source to
+obtain the guarantee, and verify the new wasm contains it.
 
 ## Redemption sizing in the source revision
 

@@ -41,6 +41,10 @@ When liquidity covers all accounted assets, the limit is total share supply. Oth
 
 Callers must also cap this value by their own share balance. The view does not reserve liquidity or include a guessed delay margin: time, another redemption, or a pause between reading and submission can invalidate the result. Re-simulate before signing and allow for those changes; no future transaction success is guaranteed. Existing deployed contracts need a new deployment to expose this additional view.
 
+## Initialization authorization
+
+`initialize` calls `admin.require_auth()`, so the proposed admin must authorize installing itself. A front-runner can submit a call to a freshly deployed instance, but cannot name an admin whose signature it does not hold; the call is rejected and the vault stays uninitialized. This does not bind the deployer: whoever holds the signature of the proposed admin can initialize, so initialize promptly after deployment. Re-initialization remains rejected with `AlreadyInit`. The in-crate test `front_runner_cannot_install_an_admin_it_does_not_control` covers this path.
+
 ## Verification
 
 Run from the repository root:

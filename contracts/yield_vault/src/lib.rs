@@ -1066,6 +1066,41 @@ mod test {
     }
 
     #[test]
+    fn front_runner_cannot_install_an_admin_it_does_not_control() {
+        let env = Env::default();
+        let victim_admin = Address::generate(&env);
+        let asset = env
+            .register_stellar_asset_contract_v2(victim_admin.clone())
+            .address();
+        let vault = env.register_contract(None, YieldVault);
+        let client = YieldVaultClient::new(&env, &vault);
+        let name = String::from_str(&env, "Yield");
+        let symbol = String::from_str(&env, "Y");
+
+        // No authorization from the proposed admin: rejected by the auth
+        // check (a host error), not by a contract-level VaultError.
+        assert!(matches!(
+            client.try_initialize(&victim_admin, &asset, &name, &symbol, &6),
+            Err(Err(_))
+        ));
+        assert!(!client.is_initialized());
+        assert_eq!(client.try_admin(), Err(Ok(VaultError::NotInit)));
+
+        // With the admin's own authorization, initialization succeeds once.
+        env.mock_all_auths();
+        client.initialize(&victim_admin, &asset, &name, &symbol, &6);
+        // The recorded authorization must be exactly the proposed admin's own.
+        let auths = env.auths();
+        assert_eq!(auths.len(), 1);
+        assert_eq!(auths[0].0, victim_admin);
+        assert_eq!(client.admin(), victim_admin);
+        assert_eq!(
+            client.try_initialize(&victim_admin, &asset, &name, &symbol, &6),
+            Err(Ok(VaultError::AlreadyInit))
+        );
+    }
+
+    #[test]
     fn authorization_is_required_for_initialization_users_and_admin() {
         let (env, vault, _, _, alice, _) = setup();
         let client = YieldVaultClient::new(&env, &vault);
