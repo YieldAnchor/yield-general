@@ -33,6 +33,19 @@ It is **not** a Treasury Bill integration, RWA integration, oracle, strategy, re
 - Asset-targeted withdrawals use ceiling rounding for shares and transfer exactly the requested assets.
 - Share price is returned at `1e18` precision.
 
+## Unbacked yield limitation (Testnet simulation only)
+
+In Phase 1, simulated yield is an accounting figure calculated from ledger timestamps; **no underlying tokens are minted or deposited to cover accrued yield**. This is strictly a **TESTNET SIMULATION ONLY** for integration testing and contract development, and **not** real Treasury Bill or real-world asset (RWA) yield.
+
+Consequently:
+
+- **Backing invariant**: The vault's actual token balance on the underlying Stellar Asset Contract equals `principal` (the assets deposited minus withdrawals/redemptions), whereas accounted `total_assets` equals `principal + accrued`.
+- **Deposits are fully backed**: Depositors are always guaranteed to be able to withdraw up to the liquid principal held by the vault.
+- **Full redemptions revert once yield accrues**: When a user attempts to redeem 100% of their shares after yield has accrued, the vault calculates a payout of `principal + accrued`, exceeding its token balance. The redemption reverts with `NoLiquidity` (error code `10`). On this Phase 1 Testnet vault, `NoLiquidity` on a full redemption is an expected consequence of unbacked yield rather than an implementation defect.
+- **Optimistic `share_price` vs. honest `available_liquidity`**: The published `share_price` reflects the full nominal value (`total_assets / total_shares`), which is inherently optimistic under unbacked simulation. Callers must consult `available_liquidity` (or `max_redeemable`) for the true ceiling on what can actually be settled.
+
+See [`docs/deployment/testnet.md`](../../docs/deployment/testnet.md#phase-1-limitations) for real on-chain evidence and deployment observations on Stellar Testnet.
+
 ## Sizing redemptions
 
 `max_redeemable` (TypeScript: `YieldVaultClient.maxRedeemable()`) returns the largest vault-wide share amount that current token liquidity can settle at the current ledger timestamp. It is read-only, includes pending simulated yield, and uses the same floor rounding as `redeem`. Empty, paused, or zero-liquidity vaults return zero; an uninitialized vault still returns `NotInit`.
