@@ -42,11 +42,23 @@ export const optionalContractIdSchema = z
 
 export const sorobanRpcUrlSchema = z.string().trim().url('Not a valid URL');
 
+/** A non-negative integer represented as a string. */
+export const nonNegativeIntegerSchema = z
+  .string()
+  .trim()
+  .regex(/^\d+$/, 'Not a valid non-negative integer')
+  .transform((val) => Number(val))
+  .refine(
+    (val) => Number.isSafeInteger(val),
+    'Not a safe integer',
+  );
+
 export interface IndexerEnvConfig {
   rpcUrl: string;
   contractId: string;
   supabaseUrl: string | null;
   supabaseKey: string | null;
+  startLedger: number | null;
 }
 
 export interface IndexerEnvResult {
@@ -115,6 +127,13 @@ export function parseIndexerEnv(env: EnvLike = {}): IndexerEnvResult {
         env.SUPABASE_KEY,
         null,
         'SUPABASE_KEY',
+        issues,
+      ),
+      startLedger: resolve(
+        nonNegativeIntegerSchema,
+        env.INDEXER_START_LEDGER,
+        null,
+        'INDEXER_START_LEDGER',
         issues,
       ),
     },

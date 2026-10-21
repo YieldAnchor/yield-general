@@ -19,6 +19,7 @@ export interface IndexerConfig {
   contractId: string;
   supabaseUrl: string | null;
   supabaseKey: string | null;
+  startLedger: number | null;
 }
 
 /**

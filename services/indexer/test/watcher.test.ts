@@ -5,11 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildEventsRequest,
   EVENTS_STREAM,
+  resolveStartCursor,
   startWatcher,
 } from '../src/watcher.js';
 
 const mocks = vi.hoisted(() => ({
   hasDatabase: false,
+  startLedger: null as number | null,
   getEvents: vi.fn(),
   getLatestLedger: vi.fn(),
   loadCheckpoint: vi.fn(),
@@ -28,7 +30,13 @@ vi.mock('@stellar/stellar-sdk/rpc', () => ({
 }));
 
 vi.mock('../src/config.js', () => ({
-  loadConfig: () => ({ contractId: CONTRACT, rpcUrl: 'https://rpc.invalid' }),
+  loadConfig: () => ({
+    contractId: CONTRACT,
+    rpcUrl: 'https://rpc.invalid',
+    supabaseUrl: null,
+    supabaseKey: null,
+    startLedger: mocks.startLedger,
+  }),
   createSupabaseClient: () =>
     mocks.hasDatabase
       ? { from: () => ({ insert: async () => ({ error: null }) }) }
@@ -99,13 +107,46 @@ describe('buildEventsRequest', () => {
   });
 });
 
+describe('resolveStartCursor', () => {
+  it('prefers a stored checkpoint over any configured start ledger', () => {
+    const checkpoint = { cursor: 'cp-001', lastLedger: 12345 };
+    const resolved = resolveStartCursor(checkpoint, 99999, 50000);
+
+    expect(resolved).toEqual({
+      cursor: 'cp-001',
+      startLedger: 12345,
+      source: 'checkpoint',
+    });
+  });
+
+  it('uses configured start ledger when no checkpoint is present', () => {
+    const resolved = resolveStartCursor(null, 4_700_000, 4_800_000);
+
+    expect(resolved).toEqual({
+      cursor: null,
+      startLedger: 4_700_000,
+      source: 'configured',
+    });
+  });
+
+  it('falls back to the ledger tip when neither checkpoint nor configured ledger exists', () => {
+    const resolved = resolveStartCursor(null, null, 4_800_000);
+
+    expect(resolved).toEqual({
+      cursor: null,
+      startLedger: 4_800_000,
+      source: 'tip',
+    });
+  });
+});
+
 describe('EVENTS_STREAM', () => {
   it('names the vault event stream', () => {
     expect(EVENTS_STREAM).toBe('yield_vault_events');
   });
 });
 
-describe('watcher persistence logging', () => {
+describe('watcher persistence logging and start ledger resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
@@ -113,6 +154,7 @@ describe('watcher persistence logging', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.hasDatabase = false;
+    mocks.startLedger = null;
     mocks.loadCheckpoint.mockResolvedValue(null);
     mocks.saveCheckpoint.mockResolvedValue(undefined);
     mocks.insertVaultEvents.mockResolvedValue(undefined);
@@ -143,6 +185,51 @@ describe('watcher persistence logging', () => {
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('starts from configured start ledger when no checkpoint is present', async () => {
+    mocks.startLedger = 50;
+    await startWatcher();
+
+    expect(mocks.getLatestLedger).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalledWith(
+      'No checkpoint stored for yield_vault_events; starting from configured ledger 50.',
+    );
+    expect(mocks.getEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ startLedger: 50 }),
+    );
+  });
+
+  it('starts from ledger tip when unconfigured and no checkpoint exists', async () => {
+    mocks.startLedger = null;
+    await startWatcher();
+
+    expect(mocks.getLatestLedger).toHaveBeenCalledTimes(1);
+    expect(console.log).toHaveBeenCalledWith(
+      'No checkpoint stored for yield_vault_events; starting from ledger tip 100.',
+    );
+    expect(mocks.getEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ startLedger: 100 }),
+    );
+  });
+
+  it('stored checkpoint overrides configured start ledger', async () => {
+    mocks.startLedger = 50;
+    mocks.loadCheckpoint.mockResolvedValue({
+      cursor: 'existing-cursor',
+      lastLedger: 80,
+    });
+    mocks.hasDatabase = true;
+
+    await startWatcher();
+
+    expect(mocks.getLatestLedger).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalledWith(
+      'Resuming yield_vault_events from checkpoint cursor existing-cursor (last ledger 80).',
+    );
+    expect(mocks.getEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: 'existing-cursor' }),
+    );
   });
 
   it('reports decoded but unpersisted events without a database', async () => {
