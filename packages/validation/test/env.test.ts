@@ -15,6 +15,7 @@ describe('parseIndexerEnv', () => {
     expect(config.contractId).toBe('');
     expect(config.supabaseUrl).toBeNull();
     expect(config.supabaseKey).toBeNull();
+    expect(config.startLedger).toBeNull();
     expect(issues).toEqual([]);
   });
 
@@ -72,5 +73,22 @@ describe('parseIndexerEnv', () => {
 
     expect(config.rpcUrl).toBe('https://rpc.example.org:443');
     expect(issues).toEqual([]);
+  });
+
+  it('parses valid INDEXER_START_LEDGER values', () => {
+    expect(parseIndexerEnv({ INDEXER_START_LEDGER: '4706830' }).config.startLedger).toBe(4706830);
+    expect(parseIndexerEnv({ INDEXER_START_LEDGER: '0' }).config.startLedger).toBe(0);
+    expect(parseIndexerEnv({ INDEXER_START_LEDGER: ' 12345 ' }).config.startLedger).toBe(12345);
+    expect(parseIndexerEnv({ INDEXER_START_LEDGER: '' }).config.startLedger).toBeNull();
+    expect(parseIndexerEnv({ INDEXER_START_LEDGER: '   ' }).config.startLedger).toBeNull();
+  });
+
+  it('reports invalid INDEXER_START_LEDGER and falls back to null', () => {
+    for (const bad of ['-1', 'abc', '12.34', '1e6']) {
+      const { config, issues } = parseIndexerEnv({ INDEXER_START_LEDGER: bad });
+      expect(config.startLedger).toBeNull();
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toContain('INDEXER_START_LEDGER');
+    }
   });
 });

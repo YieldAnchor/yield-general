@@ -24,6 +24,49 @@ const PAGE_LIMIT = INDEXER_DEFAULTS.pageLimit;
 /** Checkpoint stream id for the observed vault's event log. */
 export const EVENTS_STREAM = INDEXER_EVENTS_STREAM;
 
+export type StartLedgerSource = 'checkpoint' | 'configured' | 'tip';
+
+export interface ResolvedStartCursor {
+  cursor: string | null;
+  startLedger: number;
+  source: StartLedgerSource;
+}
+
+/**
+ * Determine the initial cursor and starting ledger for the indexer.
+ *
+ * Precedence:
+ * 1. Stored checkpoint wins if present, so a running indexer is never rewound
+ *    by configuration.
+ * 2. Explicit `INDEXER_START_LEDGER` if configured on cold start.
+ * 3. Current ledger tip as default fallback.
+ */
+export function resolveStartCursor(
+  checkpoint: { cursor: string | null; lastLedger: number } | null,
+  configuredStartLedger: number | null,
+  tipLedger: number,
+): ResolvedStartCursor {
+  if (checkpoint) {
+    return {
+      cursor: checkpoint.cursor,
+      startLedger: checkpoint.lastLedger,
+      source: 'checkpoint',
+    };
+  }
+  if (configuredStartLedger !== null) {
+    return {
+      cursor: null,
+      startLedger: configuredStartLedger,
+      source: 'configured',
+    };
+  }
+  return {
+    cursor: null,
+    startLedger: tipLedger,
+    source: 'tip',
+  };
+}
+
 /**
  * Build a `getEvents` request for either the first or a subsequent page.
  *
@@ -106,19 +149,27 @@ export async function startWatcher(): Promise<void> {
   const checkpoint = supabase
     ? await loadCheckpoint(supabase, EVENTS_STREAM)
     : null;
-  let cursor: string | null = checkpoint?.cursor ?? null;
-  let lastLedger = checkpoint?.lastLedger ?? 0;
 
-  if (checkpoint) {
+  let tipLedger = 0;
+  if (!checkpoint && config.startLedger === null) {
+    tipLedger = (await server.getLatestLedger()).sequence;
+  }
+  const start = resolveStartCursor(checkpoint, config.startLedger, tipLedger);
+
+  let cursor: string | null = start.cursor;
+  let lastLedger = start.startLedger;
+
+  if (start.source === 'checkpoint') {
     console.log(
-      `Resuming ${EVENTS_STREAM} from cursor ${cursor} (last ledger ${lastLedger}).`,
+      `Resuming ${EVENTS_STREAM} from checkpoint cursor ${cursor} (last ledger ${lastLedger}).`,
+    );
+  } else if (start.source === 'configured') {
+    console.log(
+      `No checkpoint stored for ${EVENTS_STREAM}; starting from configured ledger ${lastLedger}.`,
     );
   } else {
-    // With no checkpoint there is nothing to page from, so anchor on the
-    // ledger tip. `lastLedger` doubles as the first request's `startLedger`.
-    lastLedger = (await server.getLatestLedger()).sequence;
     console.log(
-      `No checkpoint stored for ${EVENTS_STREAM}; starting from ledger ${lastLedger}.`,
+      `No checkpoint stored for ${EVENTS_STREAM}; starting from ledger tip ${lastLedger}.`,
     );
   }
 
