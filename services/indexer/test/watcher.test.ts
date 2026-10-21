@@ -10,6 +10,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   hasDatabase: false,
+  fromSpy: vi.fn(),
   getEvents: vi.fn(),
   getLatestLedger: vi.fn(),
   loadCheckpoint: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('../src/config.js', () => ({
   loadConfig: () => ({ contractId: CONTRACT, rpcUrl: 'https://rpc.invalid' }),
   createSupabaseClient: () =>
     mocks.hasDatabase
-      ? { from: () => ({ insert: async () => ({ error: null }) }) }
+      ? { from: mocks.fromSpy }
       : null,
 }));
 
@@ -113,6 +114,7 @@ describe('watcher persistence logging', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.hasDatabase = false;
+    mocks.fromSpy.mockReturnValue({ insert: vi.fn().mockResolvedValue({ error: null }) });
     mocks.loadCheckpoint.mockResolvedValue(null);
     mocks.saveCheckpoint.mockResolvedValue(undefined);
     mocks.insertVaultEvents.mockResolvedValue(undefined);
@@ -182,5 +184,12 @@ describe('watcher persistence logging', () => {
       expect.stringMatching(/^Persisted /),
     );
     expect(mocks.saveCheckpoint).not.toHaveBeenCalled();
+  });
+
+  it('does not write fabricated random snapshots to pool_snapshots', async () => {
+    mocks.hasDatabase = true;
+    await startWatcher();
+
+    expect(mocks.fromSpy).not.toHaveBeenCalledWith('pool_snapshots');
   });
 });
