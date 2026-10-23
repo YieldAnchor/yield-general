@@ -105,10 +105,32 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model. The historical
+deployments above do not establish the initialization guarantee of newer source
+revisions. Their Wasm and verification records are unchanged.
+
+## Initialization authority in the source revision
+
+New builds require `initialize(admin, asset, name, symbol, decimals, deployer, salt)`.
+The contract checks that the creator address and exact 32-byte creation salt derive
+its own address, then requires the creator's authorization and, when different,
+the chosen admin's authorization for that initialization. A self-signed first caller
+cannot capture a vault created by someone else. The salt is public; it does not
+replace authorization. `AlreadyInit` continues to reject re-initialization.
+
+Both deployment paths pass one explicit salt to creation and initialization. The
+TypeScript helper returns it as `salt` (64 hex characters); the CLI script accepts
+`VAULT_SALT` or generates one with OpenSSL. Both scripts print the salt immediately
+after creation so a failed initialization can be retried with the same preimage;
+successful deployment records include `DEPLOYER_ADDRESS` and `VAULT_SALT`.
+The bundled scripts have only one signer and reject a different `ADMIN_ADDRESS`
+before creating a contract. For a distinct admin, prepare an initialization with
+both parties' authorization using the lower-level client/tooling.
+
+The initialization ABI has changed. Use a newly deployed build and the matching
+client; old deployed Wasm is not upgraded by editing these scripts. Native Soroban
+unit tests and stub-RPC transaction tests verify this source change locally. No
+new live Testnet verification is implied by the historical records above.
 
 ## Redemption sizing in the source revision
 

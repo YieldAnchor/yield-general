@@ -76,6 +76,8 @@ export interface UploadedWasm {
 export interface CreatedContract {
   /** The new contract's `C...` address. */
   contractId: string;
+  /** Exact creation salt (64 hex characters); required to initialize this vault. */
+  salt: string;
   /** Transaction hash of the creation. */
   hash: string;
   ledger: number | null;
@@ -302,20 +304,28 @@ export async function createVaultContract(
     );
   }
 
+  // Select once and retain it: the SDK's implicit random salt is otherwise lost
+  // to callers that need to prove the vault's creation preimage at initialize.
+  const salt =
+    context.salt === undefined
+      ? Buffer.from(
+          globalThis.crypto.getRandomValues(new Uint8Array(SALT_LENGTH)),
+        )
+      : Buffer.from(context.salt);
+
   const { hash, ledger, value } = await submitOperation(
     resolved,
     'create_contract',
     Operation.createCustomContract({
       address: Address.fromString(resolved.source),
       wasmHash,
-      ...(context.salt === undefined
-        ? {}
-        : { salt: Buffer.from(context.salt) }),
+      salt,
     }),
   );
 
   return {
     contractId: contractIdSchema.parse(value),
+    salt: salt.toString('hex'),
     hash,
     ledger,
   };

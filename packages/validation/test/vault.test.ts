@@ -21,10 +21,36 @@ describe('initializeVaultInputSchema', () => {
     name: 'YieldAnchor Vault',
     symbol: 'yVAULT',
     decimals: 6,
+    deployer: ADMIN,
+    salt: '01'.repeat(32),
   };
 
   it('accepts a well-formed initialization', () => {
     expect(initializeVaultInputSchema.parse(valid)).toEqual(valid);
+  });
+
+  it('requires a creator address and an exact 32-byte hex salt', () => {
+    for (const deployer of [undefined, '', 'GABC']) {
+      expect(
+        initializeVaultInputSchema.safeParse({ ...valid, deployer }).success,
+      ).toBe(false);
+    }
+    for (const salt of [
+      undefined,
+      '',
+      '01'.repeat(31),
+      '01'.repeat(33),
+      'zz'.repeat(32),
+    ]) {
+      expect(
+        initializeVaultInputSchema.safeParse({ ...valid, salt }).success,
+      ).toBe(false);
+    }
+    // The contract can also be created by a factory contract.
+    expect(
+      initializeVaultInputSchema.safeParse({ ...valid, deployer: VAULT })
+        .success,
+    ).toBe(true);
   });
 
   it('rejects an empty name or symbol', () => {

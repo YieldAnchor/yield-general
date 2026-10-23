@@ -156,6 +156,19 @@ function invokedMethod(tx: Transaction): string {
   }
 }
 
+function creationSalt(tx: Transaction): string {
+  const [operation] = tx.operations;
+  if (!operation || operation.type !== 'invokeHostFunction') {
+    throw new Error('Expected a contract creation host function');
+  }
+  return operation.func
+    .createContractV2()
+    .contractIdPreimage()
+    .fromAddress()
+    .salt()
+    .toString('hex');
+}
+
 describe('localSigner', () => {
   it('signs for the configured passphrase and reports the signer', async () => {
     const keypair = Keypair.random();
@@ -269,6 +282,8 @@ describe('createVaultContract', () => {
     });
 
     expect(result.contractId).toBe(CONTRACT);
+    expect(result.salt).toMatch(/^[0-9a-f]{64}$/);
+    expect(creationSalt(server.sent[0] as Transaction)).toBe(result.salt);
   });
 
   it('rejects a wasm hash of the wrong length before spending a transaction', async () => {
@@ -310,6 +325,8 @@ describe('createVaultContract', () => {
     });
 
     expect(result.contractId).toBe(CONTRACT);
+    expect(result.salt).toBe('02'.repeat(32));
+    expect(creationSalt(server.sent[0] as Transaction)).toBe(result.salt);
   });
 
   it('rejects a return value that is not a contract id', async () => {
@@ -340,6 +357,7 @@ describe('deployVaultContract', () => {
     expect(result.contractId).toBe(CONTRACT);
     expect(result.wasmHash).toBe(WASM_HASH.toString('hex'));
     expect(result.uploadHash).toBeDefined();
+    expect(creationSalt(server.sent[1] as Transaction)).toBe(result.salt);
     // `hash` is the creation transaction; `uploadHash` is the preceding upload.
     expect(result.hash).toBeDefined();
     expect(result.hash).not.toBe(result.uploadHash);

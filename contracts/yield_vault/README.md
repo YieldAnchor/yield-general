@@ -41,6 +41,29 @@ When liquidity covers all accounted assets, the limit is total share supply. Oth
 
 Callers must also cap this value by their own share balance. The view does not reserve liquidity or include a guessed delay margin: time, another redemption, or a pause between reading and submission can invalidate the result. Re-simulate before signing and allow for those changes; no future transaction success is guaranteed. Existing deployed contracts need a new deployment to expose this additional view.
 
+## Initialization authority (new deployments)
+
+`initialize(admin, asset, name, symbol, decimals, deployer, salt)` is one-time.
+`salt` is the exact 32-byte salt used to create this contract. The contract
+re-derives its address from `deployer` and `salt` and rejects mismatches with
+`BadDeployer` (17), then requires the creator's authorization for the full call.
+A distinct admin must also authorize it; when admin equals creator, one
+authorization suffices. `AlreadyInit` still takes precedence on subsequent calls.
+
+An admin signature alone does not establish creation authority: a front-runner
+could otherwise sign a first call naming itself. Public knowledge of the correct
+creator and salt does not bypass creator authorization. This guarantee covers
+address-based Soroban deployment (an account or a factory); asset-derived
+contract addresses are not YieldVault deployments.
+
+This changes only the initialization ABI of new builds, not storage or event
+encoding. Existing deployed Wasm is unchanged; deploy a new instance to obtain
+this guard. Keep the creation salt for retries. `createVaultContract` and
+`deployVaultContract` return it as 64 hex characters, and the TypeScript client
+requires `deployer` and that hex `salt`. The bundled single-signer scripts require
+admin to equal creator; a different admin needs a separately authorized call.
+There is no SDK major-version upgrade or constructor migration.
+
 ## Verification
 
 Run from the repository root:

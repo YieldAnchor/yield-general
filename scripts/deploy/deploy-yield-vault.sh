@@ -32,6 +32,7 @@ set -euo pipefail
 #   VAULT_NAME           vault metadata name             (default: YieldAnchor Vault)
 #   VAULT_SYMBOL         vault metadata symbol           (default: yVAULT)
 #   VAULT_DECIMALS       vault metadata decimals         (default: 7)
+#   VAULT_SALT           32-byte hex creation salt       (default: random)
 #
 # WARNING: The Phase 1 yield source is a deterministic TESTNET SIMULATION
 # keyed on ledger time. It is NOT real T-Bill or RWA yield and must never be
@@ -55,6 +56,11 @@ ASSET_SPEC="${ASSET_SPEC:-native}"
 VAULT_NAME="${VAULT_NAME:-YieldAnchor Vault}"
 VAULT_SYMBOL="${VAULT_SYMBOL:-yVAULT}"
 VAULT_DECIMALS="${VAULT_DECIMALS:-7}"
+VAULT_SALT="${VAULT_SALT:-$(openssl rand -hex 32)}"
+if [[ ! "$VAULT_SALT" =~ ^[0-9a-fA-F]{64}$ ]]; then
+  echo "ERROR: VAULT_SALT must contain exactly 64 hex characters." >&2
+  exit 1
+fi
 
 # ─── Network arguments ───────────────────────────────────────────────────────
 # Passing `--rpc-url` makes the CLI require an explicit passphrase, so the
@@ -123,6 +129,11 @@ fi
 
 DEPLOYER_ADDRESS="$(stellar keys address "$DEPLOYER_IDENTITY")"
 ADMIN_ADDRESS="${ADMIN_ADDRESS:-$DEPLOYER_ADDRESS}"
+if [ "$ADMIN_ADDRESS" != "$DEPLOYER_ADDRESS" ]; then
+  echo "ERROR: this single-signer script requires ADMIN_ADDRESS to equal the deployer." >&2
+  echo "       A distinct admin needs a separately authorized initialization." >&2
+  exit 1
+fi
 echo "  ✓ deployer=$DEPLOYER_ADDRESS"
 echo "  ✓ admin=$ADMIN_ADDRESS"
 
@@ -170,6 +181,7 @@ echo "════════════════════════�
 DEPLOY_OUTPUT="$(stellar contract deploy \
   --wasm "$WASM_OUT" \
   --source "$DEPLOYER_IDENTITY" \
+  --salt "$VAULT_SALT" \
   "${NET_ARGS[@]}" 2>/tmp/deploy_stderr.log)"
 
 # Portable extraction (-oE rather than -oP): Testnet contract IDs are 56
@@ -185,6 +197,7 @@ if [ -z "$CONTRACT_ID" ]; then
   exit 1
 fi
 echo "  ✓ deployed: $CONTRACT_ID"
+echo "  creation salt=$VAULT_SALT (retain for initialization retries)"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════════"
@@ -201,7 +214,9 @@ stellar contract invoke \
   --asset "$ASSET_CONTRACT_ID" \
   --name "$VAULT_NAME" \
   --symbol "$VAULT_SYMBOL" \
-  --decimals "$VAULT_DECIMALS"
+  --decimals "$VAULT_DECIMALS" \
+  --deployer "$DEPLOYER_ADDRESS" \
+  --salt "$VAULT_SALT"
 
 echo "  ✓ initialize() accepted"
 
@@ -245,6 +260,8 @@ printf 'CONTRACT_ID=%s\n' "$CONTRACT_ID" >"$CONTRACT_ID_FILE"
 printf 'NETWORK=%s\n' "$NETWORK" >>"$CONTRACT_ID_FILE"
 printf 'ASSET_CONTRACT_ID=%s\n' "$ASSET_CONTRACT_ID" >>"$CONTRACT_ID_FILE"
 printf 'ADMIN_ADDRESS=%s\n' "$ADMIN_ADDRESS" >>"$CONTRACT_ID_FILE"
+printf 'DEPLOYER_ADDRESS=%s\n' "$DEPLOYER_ADDRESS" >>"$CONTRACT_ID_FILE"
+printf 'VAULT_SALT=%s\n' "$VAULT_SALT" >>"$CONTRACT_ID_FILE"
 printf 'WASM_SHA256=%s\n' "$(sha256sum "$WASM_OUT" | cut -d' ' -f1)" >>"$CONTRACT_ID_FILE"
 echo "  Recorded in scripts/.contract_id"
 echo ""

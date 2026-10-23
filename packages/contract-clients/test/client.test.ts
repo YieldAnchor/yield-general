@@ -447,6 +447,8 @@ describe('transaction builders', () => {
       name: 'YieldAnchor Vault',
       symbol: 'yVAULT',
       decimals: 6,
+      deployer: ADMIN,
+      salt: 'ab'.repeat(32),
     });
 
     expect(invokedMethod(built.transaction)).toBe('initialize');
@@ -454,6 +456,11 @@ describe('transaction builders', () => {
       'YieldAnchor Vault',
     );
     expect(scValToNative(invokedArgs(built.transaction)[4])).toBe(6);
+    expect(invokedArgs(built.transaction)).toHaveLength(7);
+    expect(scValToNative(invokedArgs(built.transaction)[5])).toBe(ADMIN);
+    expect(scValToNative(invokedArgs(built.transaction)[6])).toEqual(
+      Buffer.alloc(32, 0xab),
+    );
   });
 
   it('surfaces a contract rejection raised during simulation', async () => {

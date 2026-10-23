@@ -69,6 +69,11 @@ async function main(): Promise<void> {
   console.log('\n[1/5] deployer');
   const deployer = loadDeployer();
   const admin = process.env.ADMIN_ADDRESS ?? deployer.publicKey();
+  if (admin !== deployer.publicKey()) {
+    throw new Error(
+      'This single-signer deploy script requires ADMIN_ADDRESS to equal the deployer; use a separately authorized initialization for a distinct admin.',
+    );
+  }
   await ensureFunded(server, deployer);
 
   console.log('\n[2/5] underlying asset');
@@ -94,6 +99,9 @@ async function main(): Promise<void> {
   console.log(`  upload  : ${deployed.uploadHash}`);
   console.log(`  create  : ${deployed.hash}`);
   console.log(`  contract: ${deployed.contractId}`);
+  console.log(
+    `  salt    : ${deployed.salt} (retain for initialization retries)`,
+  );
 
   console.log('\n[4/5] initialize');
   const client = new YieldVaultClient({
@@ -117,6 +125,8 @@ async function main(): Promise<void> {
       name: settings.name,
       symbol: settings.symbol,
       decimals: settings.decimals,
+      deployer: deployer.publicKey(),
+      salt: deployed.salt,
     })
     .then((transaction) => transaction.signAndSend());
   console.log(`  tx      : ${initialized.hash} (ledger ${initialized.ledger})`);
@@ -158,6 +168,8 @@ async function main(): Promise<void> {
       `NETWORK=${settings.network}`,
       `ASSET_CONTRACT_ID=${asset}`,
       `ADMIN_ADDRESS=${admin}`,
+      `DEPLOYER_ADDRESS=${deployer.publicKey()}`,
+      `VAULT_SALT=${deployed.salt}`,
       `WASM_SHA256=${sha256}`,
       '',
     ].join('\n'),

@@ -338,6 +338,8 @@ export class YieldVaultClient {
         nativeToScVal(parsed.name, { type: 'string' }),
         nativeToScVal(parsed.symbol, { type: 'string' }),
         nativeToScVal(parsed.decimals, { type: 'u32' }),
+        this.addressArg(parsed.deployer),
+        nativeToScVal(Buffer.from(parsed.salt, 'hex'), { type: 'bytes' }),
       ],
       () => null,
     );
