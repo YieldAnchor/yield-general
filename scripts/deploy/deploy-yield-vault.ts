@@ -17,6 +17,10 @@
  * Environment overrides: NETWORK, RPC_URL, DEPLOYER_SECRET, ADMIN_ADDRESS,
  * ASSET_CONTRACT_ID, VAULT_NAME, VAULT_SYMBOL, VAULT_DECIMALS.
  *
+ * `initialize` requires the deploying account and the creation salt. This
+ * script signs only as the deployer, so ADMIN_ADDRESS must be that account.
+ * The salt is written to `scripts/.deploy_salt` before initialize.
+ *
  * WARNING: Phase 1 yield is a deterministic TESTNET SIMULATION keyed on ledger
  * time. It is NOT real T-Bill or RWA yield. This is not a production or audited
  * deployment.
@@ -36,6 +40,7 @@ import {
 
 import {
   CONTRACT_ID_FILE,
+  DEPLOY_SALT_FILE,
   WASM_PATH,
   ensureFunded,
   loadDeployer,
@@ -69,6 +74,14 @@ async function main(): Promise<void> {
   console.log('\n[1/5] deployer');
   const deployer = loadDeployer();
   const admin = process.env.ADMIN_ADDRESS ?? deployer.publicKey();
+  if (admin !== deployer.publicKey()) {
+    throw new Error(
+      `ADMIN_ADDRESS (${admin}) is not the deployer (${deployer.publicKey()}). ` +
+        'initialize requires the deployer to sign, and the admin to sign when they differ. ' +
+        'This script holds only the deployer key. Use the deployer as admin, or submit ' +
+        'initialize yourself with both signatures and the salt in scripts/.deploy_salt.',
+    );
+  }
   await ensureFunded(server, deployer);
 
   console.log('\n[2/5] underlying asset');
@@ -94,6 +107,19 @@ async function main(): Promise<void> {
   console.log(`  upload  : ${deployed.uploadHash}`);
   console.log(`  create  : ${deployed.hash}`);
   console.log(`  contract: ${deployed.contractId}`);
+  console.log(`  salt    : ${deployed.salt}`);
+  // Persist the salt before initialize. The contract re-derives its address
+  // from it, and a failed initialize can be retried from this file.
+  writeFileSync(
+    DEPLOY_SALT_FILE,
+    [
+      `CONTRACT_ID=${deployed.contractId}`,
+      `DEPLOYER_ADDRESS=${deployer.publicKey()}`,
+      `DEPLOY_SALT=${deployed.salt}`,
+      '',
+    ].join('\n'),
+  );
+  console.log(`  saved   : ${DEPLOY_SALT_FILE}`);
 
   console.log('\n[4/5] initialize');
   const client = new YieldVaultClient({
@@ -112,6 +138,8 @@ async function main(): Promise<void> {
 
   const initialized = await client
     .initialize({
+      deployer: deployer.publicKey(),
+      salt: deployed.salt,
       admin,
       asset,
       name: settings.name,
@@ -158,6 +186,8 @@ async function main(): Promise<void> {
       `NETWORK=${settings.network}`,
       `ASSET_CONTRACT_ID=${asset}`,
       `ADMIN_ADDRESS=${admin}`,
+      `DEPLOYER_ADDRESS=${deployer.publicKey()}`,
+      `DEPLOY_SALT=${deployed.salt}`,
       `WASM_SHA256=${sha256}`,
       '',
     ].join('\n'),

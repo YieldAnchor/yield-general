@@ -32,6 +32,12 @@ set -euo pipefail
 #   VAULT_NAME           vault metadata name             (default: YieldAnchor Vault)
 #   VAULT_SYMBOL         vault metadata symbol           (default: yVAULT)
 #   VAULT_DECIMALS       vault metadata decimals         (default: 7)
+#   DEPLOY_SALT          32-byte creation salt, hex      (default: random)
+#
+# initialize is bound to the deployer and DEPLOY_SALT. This script signs only
+# as the deployer, so ADMIN_ADDRESS must be that account. The salt is written
+# to scripts/.deploy_salt before initialize so a failed initialize can be
+# retried with the same bytes.
 #
 # WARNING: The Phase 1 yield source is a deterministic TESTNET SIMULATION
 # keyed on ledger time. It is NOT real T-Bill or RWA yield and must never be
@@ -55,6 +61,15 @@ ASSET_SPEC="${ASSET_SPEC:-native}"
 VAULT_NAME="${VAULT_NAME:-YieldAnchor Vault}"
 VAULT_SYMBOL="${VAULT_SYMBOL:-yVAULT}"
 VAULT_DECIMALS="${VAULT_DECIMALS:-7}"
+
+# Checked before the build: a bad salt should not wait on compilation.
+if [ -n "${DEPLOY_SALT:-}" ]; then
+  if ! printf '%s' "$DEPLOY_SALT" | grep -Eq '^[0-9a-fA-F]{64}$'; then
+    echo "ERROR: DEPLOY_SALT must be 64 hex characters (32 bytes)." >&2
+    exit 1
+  fi
+  DEPLOY_SALT="$(printf '%s' "$DEPLOY_SALT" | tr '[:upper:]' '[:lower:]')"
+fi
 
 # ─── Network arguments ───────────────────────────────────────────────────────
 # Passing `--rpc-url` makes the CLI require an explicit passphrase, so the
@@ -126,6 +141,16 @@ ADMIN_ADDRESS="${ADMIN_ADDRESS:-$DEPLOYER_ADDRESS}"
 echo "  ✓ deployer=$DEPLOYER_ADDRESS"
 echo "  ✓ admin=$ADMIN_ADDRESS"
 
+# The contract requires both signatures when admin and deployer differ, and
+# this script can only sign as the deployer. Fail before creating an instance
+# that this run cannot initialize.
+if [ "$ADMIN_ADDRESS" != "$DEPLOYER_ADDRESS" ]; then
+  echo "ERROR: ADMIN_ADDRESS must equal the deployer ($DEPLOYER_ADDRESS)." >&2
+  echo "       This script signs only as '$DEPLOYER_IDENTITY'. A distinct admin" >&2
+  echo "       has to authorize initialize in a separate transaction." >&2
+  exit 1
+fi
+
 echo ""
 echo "════════════════════════════════════════════════════════════════════"
 echo "  STEP 3: Resolving the underlying asset"
@@ -167,8 +192,20 @@ echo "════════════════════════�
 echo "  STEP 4: Deploying WASM to Stellar $NETWORK"
 echo "════════════════════════════════════════════════════════════════════"
 
+# Chosen here, not by the CLI. The CLI's own salt is not printed, and
+# initialize has to re-derive the contract address from these exact bytes.
+# `-v` stops od from collapsing repeated lines into `*`.
+if [ -z "${DEPLOY_SALT:-}" ]; then
+  DEPLOY_SALT="$(od -v -An -N32 -tx1 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
+fi
+if ! printf '%s' "$DEPLOY_SALT" | grep -Eq '^[0-9a-f]{64}$'; then
+  echo "ERROR: DEPLOY_SALT is not 64 hex characters: $DEPLOY_SALT" >&2
+  exit 1
+fi
+
 DEPLOY_OUTPUT="$(stellar contract deploy \
   --wasm "$WASM_OUT" \
+  --salt "$DEPLOY_SALT" \
   --source "$DEPLOYER_IDENTITY" \
   "${NET_ARGS[@]}" 2>/tmp/deploy_stderr.log)"
 
@@ -185,6 +222,15 @@ if [ -z "$CONTRACT_ID" ]; then
   exit 1
 fi
 echo "  ✓ deployed: $CONTRACT_ID"
+echo "  salt=$DEPLOY_SALT"
+
+# Keep the salt before initializing. If initialize fails, the instance can
+# still be initialized from scripts/.deploy_salt.
+DEPLOY_SALT_FILE="$ROOT_DIR/scripts/.deploy_salt"
+printf 'CONTRACT_ID=%s\n' "$CONTRACT_ID" >"$DEPLOY_SALT_FILE"
+printf 'DEPLOYER_ADDRESS=%s\n' "$DEPLOYER_ADDRESS" >>"$DEPLOY_SALT_FILE"
+printf 'DEPLOY_SALT=%s\n' "$DEPLOY_SALT" >>"$DEPLOY_SALT_FILE"
+echo "  saved salt to scripts/.deploy_salt"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════════"
@@ -197,6 +243,8 @@ stellar contract invoke \
   "${NET_ARGS[@]}" \
   -- \
   initialize \
+  --deployer "$DEPLOYER_ADDRESS" \
+  --salt "$DEPLOY_SALT" \
   --admin "$ADMIN_ADDRESS" \
   --asset "$ASSET_CONTRACT_ID" \
   --name "$VAULT_NAME" \
@@ -245,6 +293,8 @@ printf 'CONTRACT_ID=%s\n' "$CONTRACT_ID" >"$CONTRACT_ID_FILE"
 printf 'NETWORK=%s\n' "$NETWORK" >>"$CONTRACT_ID_FILE"
 printf 'ASSET_CONTRACT_ID=%s\n' "$ASSET_CONTRACT_ID" >>"$CONTRACT_ID_FILE"
 printf 'ADMIN_ADDRESS=%s\n' "$ADMIN_ADDRESS" >>"$CONTRACT_ID_FILE"
+printf 'DEPLOYER_ADDRESS=%s\n' "$DEPLOYER_ADDRESS" >>"$CONTRACT_ID_FILE"
+printf 'DEPLOY_SALT=%s\n' "$DEPLOY_SALT" >>"$CONTRACT_ID_FILE"
 printf 'WASM_SHA256=%s\n' "$(sha256sum "$WASM_OUT" | cut -d' ' -f1)" >>"$CONTRACT_ID_FILE"
 echo "  Recorded in scripts/.contract_id"
 echo ""

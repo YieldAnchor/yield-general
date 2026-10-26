@@ -1,12 +1,17 @@
+import { randomBytes } from 'node:crypto';
+
 import {
   Account,
   Address,
   BASE_FEE,
   Keypair,
   Operation,
+  StrKey,
   Transaction,
   TransactionBuilder,
+  hash as sha256,
   rpc,
+  xdr,
 } from '@stellar/stellar-sdk';
 import type { SignTransaction } from '@stellar/stellar-sdk/contract';
 
@@ -76,6 +81,12 @@ export interface UploadedWasm {
 export interface CreatedContract {
   /** The new contract's `C...` address. */
   contractId: string;
+  /**
+   * Hex-encoded 32-byte salt the instance was created with. `initialize`
+   * re-derives the contract address from the deployer and this salt, so the
+   * caller has to keep it.
+   */
+  salt: string;
   /** Transaction hash of the creation. */
   hash: string;
   ledger: number | null;
@@ -273,10 +284,48 @@ export async function uploadContractWasm(
 }
 
 /**
+ * Contract id the network will assign to `deployer` + `salt`.
+ *
+ * This is the address-preimage formula `Asset.contractId` uses, with the
+ * deployer address in place of an asset. It is the same derivation the vault
+ * repeats on-chain in `initialize`, so a mismatch means this salt cannot
+ * initialize the instance.
+ */
+export function deployedContractId(
+  deployer: string,
+  salt: Buffer | Uint8Array,
+  networkPassphrase: string,
+): string {
+  const saltBytes = Buffer.from(salt);
+  if (saltBytes.length !== SALT_LENGTH) {
+    throw new VaultClientError(
+      `Expected a ${SALT_LENGTH}-byte salt, got ${saltBytes.length} bytes`,
+      'create_contract',
+    );
+  }
+  const preimage = xdr.HashIdPreimage.envelopeTypeContractId(
+    new xdr.HashIdPreimageContractId({
+      networkId: sha256(Buffer.from(networkPassphrase)),
+      contractIdPreimage: xdr.ContractIdPreimage.contractIdPreimageFromAddress(
+        new xdr.ContractIdPreimageFromAddress({
+          address: Address.fromString(deployer).toScAddress(),
+          salt: saltBytes,
+        }),
+      ),
+    }),
+  );
+  return StrKey.encodeContract(sha256(preimage.toXDR()));
+}
+
+/**
  * Create a contract instance from an uploaded wasm hash.
  *
  * The address is derived from the deployer plus the salt, so passing a fixed
- * `salt` yields a predictable contract address.
+ * `salt` yields a predictable contract address. When `salt` is omitted a
+ * random one is generated here, not inside the SDK: the SDK's own random salt
+ * is not returned, and `initialize` cannot proceed without those exact bytes.
+ * The returned id is checked against {@link deployedContractId} so a salt that
+ * does not match the created instance is never handed back.
  */
 export async function createVaultContract(
   context: DeployContext & {
@@ -292,12 +341,13 @@ export async function createVaultContract(
       'create_contract',
     );
   }
-  if (
-    context.salt !== undefined &&
-    Buffer.from(context.salt).length !== SALT_LENGTH
-  ) {
+  const salt =
+    context.salt === undefined
+      ? randomBytes(SALT_LENGTH)
+      : Buffer.from(context.salt);
+  if (salt.length !== SALT_LENGTH) {
     throw new VaultClientError(
-      `Expected a ${SALT_LENGTH}-byte salt, got ${Buffer.from(context.salt).length} bytes`,
+      `Expected a ${SALT_LENGTH}-byte salt, got ${salt.length} bytes`,
       'create_contract',
     );
   }
@@ -308,14 +358,26 @@ export async function createVaultContract(
     Operation.createCustomContract({
       address: Address.fromString(resolved.source),
       wasmHash,
-      ...(context.salt === undefined
-        ? {}
-        : { salt: Buffer.from(context.salt) }),
+      salt,
     }),
   );
 
+  const contractId = contractIdSchema.parse(value);
+  const expected = deployedContractId(
+    resolved.source,
+    salt,
+    resolved.networkPassphrase,
+  );
+  if (contractId !== expected) {
+    throw new VaultClientError(
+      `create_contract returned ${contractId}, but ${resolved.source} and salt ${salt.toString('hex')} derive ${expected}. The salt was not returned because it cannot initialize that instance.`,
+      'create_contract',
+    );
+  }
+
   return {
-    contractId: contractIdSchema.parse(value),
+    contractId,
+    salt: salt.toString('hex'),
     hash,
     ledger,
   };

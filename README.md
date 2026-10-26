@@ -430,7 +430,10 @@ reading it back. It generates a funded deployer on first use and keeps the key i
 `scripts/.deployer.json` (gitignored); inject `DEPLOYER_SECRET` instead in CI. Both
 paths record the outcome in `scripts/.contract_id`, and the shell path additionally
 refuses an underlying asset that is a Stellar account (`G...`) rather than a token
-contract (`C...`).
+contract (`C...`). `initialize` requires the deploying account and the creation salt.
+Both scripts sign only as the deployer (so the admin is that account), generate the
+salt themselves, and write it to `scripts/.deploy_salt` before initialize so a failed
+initialize can be retried.
 
 A live smoke test then exercises the deployed vault end to end against real Testnet
 state:

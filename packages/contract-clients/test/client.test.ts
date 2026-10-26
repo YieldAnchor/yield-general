@@ -440,8 +440,11 @@ describe('transaction builders', () => {
     );
   });
 
-  it('builds initialize with the configured metadata', async () => {
+  it('builds initialize with the deployer, salt, and metadata', async () => {
+    const salt = 'cd'.repeat(32);
     const built = await clientWith(server()).initialize({
+      deployer: ADMIN,
+      salt: salt.toUpperCase(),
       admin: ADMIN,
       asset: ASSET,
       name: 'YieldAnchor Vault',
@@ -449,11 +452,16 @@ describe('transaction builders', () => {
       decimals: 6,
     });
 
+    const args = invokedArgs(built.transaction);
     expect(invokedMethod(built.transaction)).toBe('initialize');
-    expect(scValToNative(invokedArgs(built.transaction)[2])).toBe(
-      'YieldAnchor Vault',
-    );
-    expect(scValToNative(invokedArgs(built.transaction)[4])).toBe(6);
+    expect(scValToNative(args[0])).toBe(ADMIN);
+    expect(
+      Buffer.from(scValToNative(args[1]) as Uint8Array).toString('hex'),
+    ).toBe(salt);
+    expect(scValToNative(args[2])).toBe(ADMIN);
+    expect(scValToNative(args[3])).toBe(ASSET);
+    expect(scValToNative(args[4])).toBe('YieldAnchor Vault');
+    expect(scValToNative(args[6])).toBe(6);
   });
 
   it('surfaces a contract rejection raised during simulation', async () => {

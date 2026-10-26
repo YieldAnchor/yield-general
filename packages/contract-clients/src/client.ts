@@ -333,6 +333,9 @@ export class YieldVaultClient {
     return this.build(
       VAULT_METHODS.initialize,
       [
+        this.addressArg(parsed.deployer),
+        // BytesN<32> is an ScVal bytes value of that exact length.
+        nativeToScVal(Buffer.from(parsed.salt, 'hex'), { type: 'bytes' }),
         this.addressArg(parsed.admin),
         this.addressArg(parsed.asset),
         nativeToScVal(parsed.name, { type: 'string' }),

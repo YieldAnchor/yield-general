@@ -42,8 +42,22 @@ export const vaultMetadataSchema = z.object({
   decimals: decimalsSchema,
 });
 
-/** `initialize(admin, asset, name, symbol, decimals)`. */
+/**
+ * 32-byte contract-creation salt, hex encoded.
+ *
+ * Mixed case is accepted and normalised. The contract compares the raw bytes,
+ * so `AA` and `aa` must become the same salt.
+ */
+export const creationSaltSchema = z
+  .string()
+  .trim()
+  .regex(/^[0-9a-fA-F]{64}$/, 'Salt must be 64 hex characters (32 bytes)')
+  .transform((value) => value.toLowerCase());
+
+/** `initialize(deployer, salt, admin, asset, name, symbol, decimals)`. */
 export const initializeVaultInputSchema = vaultMetadataSchema.extend({
+  deployer: stellarAccountIdSchema,
+  salt: creationSaltSchema,
   admin: stellarAccountIdSchema,
   asset: contractIdSchema,
 });

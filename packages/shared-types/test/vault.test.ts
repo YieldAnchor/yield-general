@@ -27,6 +27,9 @@ describe('describeVaultError', () => {
     expect(describeVaultError(VAULT_ERROR_CODES.Overflow)).toMatch(
       /integer range/i,
     );
+    expect(describeVaultError(VAULT_ERROR_CODES.BadDeployer)).toMatch(
+      /deployer and salt/i,
+    );
   });
 
   it('does not pretend to know an unrecognised code', () => {
