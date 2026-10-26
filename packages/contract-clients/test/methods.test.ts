@@ -17,8 +17,12 @@ const CONTRACT_SOURCE = readFileSync(
   'utf8',
 );
 
+// The `#[cfg(test)]` module hosts a creator contract used only to exercise
+// deployer authorization. Its functions are not part of the vault ABI.
+const contractSurface = CONTRACT_SOURCE.split('#[cfg(test)]')[0] ?? '';
+
 const declaredMethods = new Set(
-  Array.from(CONTRACT_SOURCE.matchAll(/pub fn ([a-z_]+)\(/g)).map(
+  Array.from(contractSurface.matchAll(/pub fn ([a-z_]+)\(/g)).map(
     (match) => match[1],
   ),
 );

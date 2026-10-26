@@ -19,6 +19,7 @@ import {
   VaultSubmissionError,
   createVaultContract,
   deployVaultContract,
+  deployedContractId,
   localSigner,
   uploadContractWasm,
   type DeployServer,
@@ -70,6 +71,17 @@ function confirmationSuccess(returnValue: xdr.ScVal) {
  * deployment (upload, then create) can return a wasm hash first and a contract
  * address second, exactly as the network does.
  */
+/** Salt bytes embedded in a create-contract-v2 operation. */
+function saltFromCreate(tx: Transaction): Buffer {
+  const [operation] = tx.operations;
+  if (!operation || operation.type !== 'invokeHostFunction') {
+    throw new Error('expected invokeHostFunction');
+  }
+  return Buffer.from(
+    operation.func.createContractV2().contractIdPreimage().fromAddress().salt(),
+  );
+}
+
 class StubServer implements DeployServer {
   readonly simulated: Transaction[] = [];
   readonly sent: Transaction[] = [];
@@ -81,6 +93,11 @@ class StubServer implements DeployServer {
       simulationError?: string;
       sendStatus?: 'PENDING' | 'ERROR';
       confirmationFailed?: boolean;
+      /**
+       * When false, a create-contract simulation returns `retvals` instead of
+       * the address derived from the salt in the transaction.
+       */
+      deriveContractId?: boolean;
     },
   ) {}
 
@@ -125,6 +142,21 @@ class StubServer implements DeployServer {
   }
 
   private retval(): xdr.ScVal {
+    const tx = this.simulated[this.index];
+    if (
+      tx &&
+      this.options.deriveContractId !== false &&
+      invokedMethod(tx) === 'create_contract'
+    ) {
+      return nativeToScVal(
+        deployedContractId(
+          DEPLOYER.publicKey(),
+          saltFromCreate(tx),
+          PASSPHRASE,
+        ),
+        { type: 'address' },
+      );
+    }
     const { retvals } = this.options;
     return retvals[Math.min(this.index, retvals.length - 1)] as xdr.ScVal;
   }
@@ -258,17 +290,20 @@ describe('uploadContractWasm', () => {
 });
 
 describe('createVaultContract', () => {
-  it('returns the contract id the network created', async () => {
-    const server = new StubServer({
-      retvals: [nativeToScVal(CONTRACT, { type: 'address' })],
-    });
+  it('returns the contract id derived from the salt it embedded', async () => {
+    const server = new StubServer({ retvals: [] });
 
     const result = await createVaultContract({
       ...context(server),
       wasmHash: WASM_HASH,
     });
 
-    expect(result.contractId).toBe(CONTRACT);
+    const salt = Buffer.from(result.salt, 'hex');
+    expect(salt).toHaveLength(32);
+    expect(saltFromCreate(server.sent[0] as Transaction)).toEqual(salt);
+    expect(result.contractId).toBe(
+      deployedContractId(DEPLOYER.publicKey(), salt, PASSPHRASE),
+    );
   });
 
   it('rejects a wasm hash of the wrong length before spending a transaction', async () => {
@@ -298,23 +333,43 @@ describe('createVaultContract', () => {
     expect(server.sent).toHaveLength(0);
   });
 
-  it('accepts a 32-byte salt', async () => {
-    const server = new StubServer({
-      retvals: [nativeToScVal(CONTRACT, { type: 'address' })],
-    });
+  it('accepts a 32-byte salt and embeds those exact bytes', async () => {
+    const server = new StubServer({ retvals: [] });
+    const salt = Buffer.alloc(32, 2);
 
     const result = await createVaultContract({
       ...context(server),
       wasmHash: WASM_HASH,
-      salt: Buffer.alloc(32, 2),
+      salt,
     });
 
-    expect(result.contractId).toBe(CONTRACT);
+    expect(result.salt).toBe(salt.toString('hex'));
+    expect(saltFromCreate(server.sent[0] as Transaction)).toEqual(salt);
+    expect(result.contractId).toBe(
+      deployedContractId(DEPLOYER.publicKey(), salt, PASSPHRASE),
+    );
+  });
+
+  it('rejects a created id that the salt does not derive', async () => {
+    const server = new StubServer({
+      retvals: [nativeToScVal(CONTRACT, { type: 'address' })],
+      deriveContractId: false,
+    });
+
+    await expect(
+      createVaultContract({
+        ...context(server),
+        wasmHash: WASM_HASH,
+        salt: Buffer.alloc(32, 2),
+      }),
+    ).rejects.toThrow(/does not derive|cannot initialize/);
+    expect(server.sent).toHaveLength(1);
   });
 
   it('rejects a return value that is not a contract id', async () => {
     const server = new StubServer({
       retvals: [nativeToScVal('not-a-contract', { type: 'string' })],
+      deriveContractId: false,
     });
 
     await expect(
@@ -337,7 +392,14 @@ describe('deployVaultContract', () => {
       wasm: Buffer.alloc(64, 1),
     });
 
-    expect(result.contractId).toBe(CONTRACT);
+    expect(result.salt).toMatch(/^[0-9a-f]{64}$/);
+    expect(result.contractId).toBe(
+      deployedContractId(
+        DEPLOYER.publicKey(),
+        Buffer.from(result.salt, 'hex'),
+        PASSPHRASE,
+      ),
+    );
     expect(result.wasmHash).toBe(WASM_HASH.toString('hex'));
     expect(result.uploadHash).toBeDefined();
     // `hash` is the creation transaction; `uploadHash` is the preceding upload.

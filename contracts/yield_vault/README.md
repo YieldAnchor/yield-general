@@ -6,14 +6,26 @@ This crate contains the Phase 1 core YieldVault contract.
 
 Implemented in this phase:
 
-- One-time initialization with admin, arbitrary underlying token, name, symbol, and decimals.
+- One-time initialization with admin, arbitrary underlying token, name, symbol, and decimals. Initialization is bound to the address that created the instance and to the creation salt.
 - Asset deposits with proportional vault-share minting.
 - Share redemption and asset withdrawal.
 - Integer-only accounting with checked arithmetic and explicit floor/ceiling rounding.
 - Admin pause/unpause controls.
-- Soroban address authorization for initialization, user operations, and admin operations.
+- Soroban address authorization for initialization, user operations, and admin operations. The deployer must authorize `initialize`, and so must the admin when they are different addresses.
 - Vault state, initialization, pause, balance, conversion, share-price, and liquidity read methods.
 - Initialization, deposit, withdrawal, share mint/burn, yield, and pause events.
+
+## Initialization
+
+`initialize(deployer, salt, admin, asset, name, symbol, decimals)` succeeds only once, and only for the address that created the instance.
+
+`deployer` and `salt` must be the pair supplied at creation. The contract re-derives the address with the host (`env.deployer().with_address(deployer, salt).deployed_address()`) and returns `BadDeployer` (code 17) when it is not this contract. That is the address preimage used by `stellar contract deploy --salt` and by `Operation.createCustomContract`. A factory must deploy the same way: `with_current_contract` builds a different address and will not pass the check.
+
+`deployer.require_auth()` then runs, and `admin.require_auth()` runs as well when the admin is someone else. Authorization covers the full argument list, so a signature for one admin or one metadata value does not authorize another. Requiring only the admin's signature does not close the capture window: a front-runner can name itself as admin and sign that call. The creation check rejects that call even when the signature is valid.
+
+`AlreadyInit` is checked first. A second call returns `AlreadyInit` even if the deployer, salt, or metadata would have been rejected on a fresh instance.
+
+The `initialize` event is unchanged: `(admin, asset, name, symbol, decimals, simulation)`. Indexers do not need a new decoder. Instances that are already initialized keep their admin; this guarantee applies to instances built from this revision. The salt is public in the creation transaction. What matters is the deployer's signature, not secrecy of the salt. If initialize fails after creation, the salt is in `scripts/.deploy_salt` and can also be read back from the create-contract operation.
 
 ## Simulated yield warning
 

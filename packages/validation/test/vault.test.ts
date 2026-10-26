@@ -10,12 +10,16 @@ import {
 } from '../src/index.js';
 
 const ADMIN = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 1));
+const DEPLOYER = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 8));
 const USER = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 2));
 const ASSET = StrKey.encodeContract(Buffer.alloc(32, 3));
 const VAULT = StrKey.encodeContract(Buffer.alloc(32, 4));
+const SALT = 'ab'.repeat(32);
 
 describe('initializeVaultInputSchema', () => {
   const valid = {
+    deployer: DEPLOYER,
+    salt: SALT,
     admin: ADMIN,
     asset: ASSET,
     name: 'YieldAnchor Vault',
@@ -66,6 +70,31 @@ describe('initializeVaultInputSchema', () => {
   it('rejects an admin that is not an account address', () => {
     expect(
       initializeVaultInputSchema.safeParse({ ...valid, admin: ASSET }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a deployer that is not an account address', () => {
+    expect(
+      initializeVaultInputSchema.safeParse({ ...valid, deployer: ASSET })
+        .success,
+    ).toBe(false);
+  });
+
+  it('normalises a 32-byte salt and rejects any other length', () => {
+    expect(
+      initializeVaultInputSchema.parse({ ...valid, salt: SALT.toUpperCase() })
+        .salt,
+    ).toBe(SALT);
+    expect(
+      initializeVaultInputSchema.safeParse({ ...valid, salt: 'abcd' }).success,
+    ).toBe(false);
+    expect(
+      initializeVaultInputSchema.safeParse({ ...valid, salt: `${SALT}ff` })
+        .success,
+    ).toBe(false);
+    expect(
+      initializeVaultInputSchema.safeParse({ ...valid, salt: 'zz'.repeat(32) })
+        .success,
     ).toBe(false);
   });
 });

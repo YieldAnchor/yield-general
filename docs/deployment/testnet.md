@@ -105,10 +105,23 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model.
+
+`initialize` is bound to the account that created the instance. The caller passes
+that account as `deployer` and the 32-byte creation `salt`; the contract re-derives
+its own address from them and returns `BadDeployer` on a mismatch, and `deployer`
+must sign. The proposed `admin` must sign as well when it is a different address.
+A front-runner that signs a valid call naming itself as admin is rejected. A second
+call still returns `AlreadyInit`, including when the salt or deployer is wrong.
+Requiring only the admin's signature does not provide this: that caller can be the
+front-runner. The historical deployment above was initialized before this rule
+existed and is unaffected; deploying this revision produces a new instance.
+
+Both deploy scripts sign only as the deployer, so `ADMIN_ADDRESS` must be that
+account. They write the salt to `scripts/.deploy_salt` before calling `initialize`.
+If that call fails, retry with the saved `DEPLOYER_ADDRESS` and `DEPLOY_SALT`
+rather than deploying again. The salt is also in the create-contract operation if
+the file is lost. `DEPLOY_SALT` (64 hex characters) deploys at a chosen address.
 
 ## Redemption sizing in the source revision
 
