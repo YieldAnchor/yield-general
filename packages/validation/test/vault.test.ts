@@ -13,9 +13,13 @@ const ADMIN = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 1));
 const USER = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 2));
 const ASSET = StrKey.encodeContract(Buffer.alloc(32, 3));
 const VAULT = StrKey.encodeContract(Buffer.alloc(32, 4));
+const DEPLOYER = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 5));
+const SALT = '0'.repeat(64);
 
 describe('initializeVaultInputSchema', () => {
   const valid = {
+    deployer: DEPLOYER,
+    salt: SALT,
     admin: ADMIN,
     asset: ASSET,
     name: 'YieldAnchor Vault',

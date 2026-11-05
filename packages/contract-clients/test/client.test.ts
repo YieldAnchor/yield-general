@@ -29,7 +29,8 @@ const USER_KEYPAIR = Keypair.random();
 const USER = USER_KEYPAIR.publicKey();
 const ASSET = StrKey.encodeContract(Buffer.alloc(32, 3));
 const ADMIN = Keypair.random().publicKey();
-
+const DEPLOYER = Keypair.random().publicKey();
+const SALT = '0'.repeat(64);
 /** Build a simulation success response the way RPC would serialise it. */
 function simulationSuccess(retval: xdr.ScVal) {
   return rpc.parseRawSimulation({
@@ -442,6 +443,8 @@ describe('transaction builders', () => {
 
   it('builds initialize with the configured metadata', async () => {
     const built = await clientWith(server()).initialize({
+      deployer: DEPLOYER,
+      salt: SALT,
       admin: ADMIN,
       asset: ASSET,
       name: 'YieldAnchor Vault',
@@ -450,10 +453,14 @@ describe('transaction builders', () => {
     });
 
     expect(invokedMethod(built.transaction)).toBe('initialize');
-    expect(scValToNative(invokedArgs(built.transaction)[2])).toBe(
+    expect(scValToNative(invokedArgs(built.transaction)[0])).toBe(DEPLOYER);
+    expect(Buffer.from(scValToNative(invokedArgs(built.transaction)[1])).toString('hex')).toBe(SALT);
+    expect(scValToNative(invokedArgs(built.transaction)[2])).toBe(ADMIN);
+    expect(scValToNative(invokedArgs(built.transaction)[3])).toBe(ASSET);
+    expect(scValToNative(invokedArgs(built.transaction)[4])).toBe(
       'YieldAnchor Vault',
     );
-    expect(scValToNative(invokedArgs(built.transaction)[4])).toBe(6);
+    expect(scValToNative(invokedArgs(built.transaction)[6])).toBe(6);
   });
 
   it('surfaces a contract rejection raised during simulation', async () => {

@@ -66,6 +66,12 @@ export const nonNegativeBaseUnitAmountSchema = baseUnitAmountSchema.refine(
   'Amount cannot be negative',
 );
 
+/** A 32-byte salt as a hex string (64 hex characters). */
+export const saltSchema = z
+  .string()
+  .trim()
+  .regex(/^[0-9a-fA-F]{64}$/, 'Salt must be a 32-byte hex string (64 hex characters)');
+
 /**
  * A user-typed decimal amount for an asset with `decimals` places.
  *

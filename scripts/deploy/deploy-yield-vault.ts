@@ -21,7 +21,7 @@
  * time. It is NOT real T-Bill or RWA yield. This is not a production or audited
  * deployment.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 import { Asset, rpc } from '@stellar/stellar-sdk';
@@ -41,7 +41,6 @@ import {
   loadDeployer,
   readSettings,
 } from '../lib/testnet.js';
-
 function loadWasm(): { wasm: Buffer; sha256: string } {
   if (!existsSync(WASM_PATH)) {
     throw new Error(
@@ -85,15 +84,20 @@ async function main(): Promise<void> {
   console.log(`  asset   : ${asset}`);
 
   console.log('\n[3/5] deploying');
+  // Generate a deterministic salt for the contract deployment
+  const salt = randomBytes(32);
+  const saltHex = salt.toString('hex');
   const deployed = await deployVaultContract({
     wasm,
     deployer,
     network: settings.network,
     rpcUrl: settings.rpcUrl,
+    salt,
   });
   console.log(`  upload  : ${deployed.uploadHash}`);
   console.log(`  create  : ${deployed.hash}`);
   console.log(`  contract: ${deployed.contractId}`);
+  console.log(`  salt    : ${saltHex}`);
 
   console.log('\n[4/5] initialize');
   const client = new YieldVaultClient({
@@ -112,6 +116,8 @@ async function main(): Promise<void> {
 
   const initialized = await client
     .initialize({
+      deployer: deployer.publicKey(),
+      salt: saltHex,
       admin,
       asset,
       name: settings.name,

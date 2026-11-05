@@ -7,6 +7,7 @@ This crate contains the Phase 1 core YieldVault contract.
 Implemented in this phase:
 
 - One-time initialization with admin, arbitrary underlying token, name, symbol, and decimals.
+- **Initialization is bound to the contract's deployer and creation salt.** The `initialize` entry point requires the deployer's signature and verifies that the provided `deployer` + `salt` derive the current contract address. This prevents front-running: a fresh contract cannot be captured by an unauthorized caller.
 - Asset deposits with proportional vault-share minting.
 - Share redemption and asset withdrawal.
 - Integer-only accounting with checked arithmetic and explicit floor/ceiling rounding.
@@ -20,7 +21,6 @@ Implemented in this phase:
 The contract includes a deterministic simple-interest simulation at `8.00%` APR, derived only from Soroban ledger timestamps. This is enabled solely to support Phase 1 Testnet development and is exposed through the `simulation` field in `VaultState`.
 
 It is **not** a Treasury Bill integration, RWA integration, oracle, strategy, reserve proof, NAV calculation, or real yield source. Simulated accounting yield does not mint underlying tokens; Testnet redemption tests must explicitly provide any additional token liquidity. Do not deploy this simulation for production funds or mainnet use.
-
 ## Accounting model
 
 - `principal` tracks assets deposited through the vault.

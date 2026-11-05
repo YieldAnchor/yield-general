@@ -333,6 +333,8 @@ export class YieldVaultClient {
     return this.build(
       VAULT_METHODS.initialize,
       [
+        this.addressArg(parsed.deployer),
+        this.bytesNArg(parsed.salt),
         this.addressArg(parsed.admin),
         this.addressArg(parsed.asset),
         nativeToScVal(parsed.name, { type: 'string' }),
@@ -560,6 +562,11 @@ export class YieldVaultClient {
 
   private addressArg(address: string): xdr.ScVal {
     return nativeToScVal(address, { type: 'address' });
+  }
+
+  private bytesNArg(hex: string): xdr.ScVal {
+    const bytes = Buffer.from(hex, 'hex');
+    return nativeToScVal(bytes, { type: 'bytes' });
   }
 
   private i128Arg(value: bigint): xdr.ScVal {

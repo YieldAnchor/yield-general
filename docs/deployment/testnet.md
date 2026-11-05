@@ -105,11 +105,13 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
-
+no fees, no per-user withdrawal queue, and no compliance model. **Initialization is
+now bound to the deployer and creation salt**: the `initialize` entry point requires
+the deployer's signature and verifies that the provided `deployer` + `salt` derive the
+current contract address. This prevents front-running — a fresh contract cannot be
+captured by an unauthorized caller. The deployment script generates a random salt,
+passes it to both `create_contract` and `initialize`, and records it alongside the
+contract id.
 ## Redemption sizing in the source revision
 
 The source contract now provides `max_redeemable`, exposed as `YieldVaultClient.maxRedeemable()`. It calculates the exact current-ledger share ceiling from actual token liquidity, including redemption's floor rounding. Use the lesser of this value and the holder's share balance, and allow for time or liquidity changes before submission; the view reserves nothing and supplies no automatic safety margin.
