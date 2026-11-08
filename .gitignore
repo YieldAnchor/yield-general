@@ -1,8 +1,5 @@
 # Environment files (never commit real values; .env.example is the template)
-.env
-.env.local
 .env.*.local
-**/.env
 **/.env.local
 !.env.example
 
@@ -24,7 +21,6 @@ package-lock.json
 # contracts/yield_vault/Cargo.lock pins the Soroban contract build.
 
 # VS Code
-.vscode/
 
 # macOS
 .DS_Store
@@ -53,3 +49,4 @@ scripts/.deployer.json
 *.swo
 *.bak
 ~*
+config.bat

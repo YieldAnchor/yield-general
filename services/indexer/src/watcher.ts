@@ -56,7 +56,7 @@ export function buildEventsRequest(
  * `initialize` creates the vault metadata row, so those are applied before the
  * event rows to keep a batch that contains both of them coherent.
  */
-async function projectEvents(
+export async function projectEvents(
   supabase: SupabaseClient,
   events: DecodedVaultEvent[],
 ): Promise<void> {

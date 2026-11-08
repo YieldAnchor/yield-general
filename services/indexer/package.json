@@ -5,12 +5,12 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p .",
+    "dev": "node init && tsx watch src/index.ts",
+    "build": "node init && tsc -p .",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node dist/index.js"
+    "start": "node init && node dist/index.js"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "16.0.1",
