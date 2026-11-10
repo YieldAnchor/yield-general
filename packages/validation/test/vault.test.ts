@@ -16,6 +16,8 @@ const VAULT = StrKey.encodeContract(Buffer.alloc(32, 4));
 
 describe('initializeVaultInputSchema', () => {
   const valid = {
+    deployer: ADMIN,
+    salt: Buffer.alloc(32, 7),
     admin: ADMIN,
     asset: ASSET,
     name: 'YieldAnchor Vault',
@@ -66,6 +68,17 @@ describe('initializeVaultInputSchema', () => {
   it('rejects an admin that is not an account address', () => {
     expect(
       initializeVaultInputSchema.safeParse({ ...valid, admin: ASSET }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an invalid deployment preimage', () => {
+    expect(
+      initializeVaultInputSchema.safeParse({ ...valid, deployer: ASSET })
+        .success,
+    ).toBe(false);
+    expect(
+      initializeVaultInputSchema.safeParse({ ...valid, salt: Buffer.alloc(31) })
+        .success,
     ).toBe(false);
   });
 });

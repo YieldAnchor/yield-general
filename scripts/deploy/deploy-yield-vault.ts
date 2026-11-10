@@ -21,8 +21,14 @@
  * time. It is NOT real T-Bill or RWA yield. This is not a production or audited
  * deployment.
  */
-import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { Asset, rpc } from '@stellar/stellar-sdk';
 
@@ -69,6 +75,11 @@ async function main(): Promise<void> {
   console.log('\n[1/5] deployer');
   const deployer = loadDeployer();
   const admin = process.env.ADMIN_ADDRESS ?? deployer.publicKey();
+  if (admin !== deployer.publicKey()) {
+    throw new Error(
+      'ADMIN_ADDRESS must match the deployer for this single-signer script',
+    );
+  }
   await ensureFunded(server, deployer);
 
   console.log('\n[2/5] underlying asset');
@@ -85,15 +96,20 @@ async function main(): Promise<void> {
   console.log(`  asset   : ${asset}`);
 
   console.log('\n[3/5] deploying');
+  const salt = randomBytes(32);
+  const saltFile = join(dirname(CONTRACT_ID_FILE), '.deploy_salt');
+  appendFileSync(saltFile, `${deployer.publicKey()} ${salt.toString('hex')}\n`);
   const deployed = await deployVaultContract({
     wasm,
     deployer,
+    salt,
     network: settings.network,
     rpcUrl: settings.rpcUrl,
   });
   console.log(`  upload  : ${deployed.uploadHash}`);
   console.log(`  create  : ${deployed.hash}`);
   console.log(`  contract: ${deployed.contractId}`);
+  appendFileSync(saltFile, `${deployed.contractId} ${salt.toString('hex')}\n`);
 
   console.log('\n[4/5] initialize');
   const client = new YieldVaultClient({
@@ -112,6 +128,8 @@ async function main(): Promise<void> {
 
   const initialized = await client
     .initialize({
+      deployer: deployer.publicKey(),
+      salt: deployed.salt,
       admin,
       asset,
       name: settings.name,
