@@ -42,8 +42,12 @@ export const vaultMetadataSchema = z.object({
   decimals: decimalsSchema,
 });
 
-/** `initialize(admin, asset, name, symbol, decimals)`. */
+/** `initialize(deployer, salt, admin, asset, name, symbol, decimals)`. */
 export const initializeVaultInputSchema = vaultMetadataSchema.extend({
+  deployer: stellarAccountIdSchema,
+  salt: z
+    .instanceof(Uint8Array)
+    .refine((value) => value.length === 32, 'Salt must be 32 bytes'),
   admin: stellarAccountIdSchema,
   asset: contractIdSchema,
 });

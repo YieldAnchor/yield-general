@@ -123,6 +123,10 @@ fi
 
 DEPLOYER_ADDRESS="$(stellar keys address "$DEPLOYER_IDENTITY")"
 ADMIN_ADDRESS="${ADMIN_ADDRESS:-$DEPLOYER_ADDRESS}"
+if [ "$ADMIN_ADDRESS" != "$DEPLOYER_ADDRESS" ]; then
+  echo "ERROR: ADMIN_ADDRESS must match the deployer for this single-signer script." >&2
+  exit 1
+fi
 echo "  ✓ deployer=$DEPLOYER_ADDRESS"
 echo "  ✓ admin=$ADMIN_ADDRESS"
 
@@ -167,8 +171,12 @@ echo "════════════════════════�
 echo "  STEP 4: Deploying WASM to Stellar $NETWORK"
 echo "════════════════════════════════════════════════════════════════════"
 
+SALT_HEX="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+SALT_FILE="$ROOT_DIR/scripts/.deploy_salt"
+printf '%s %s\n' "$DEPLOYER_ADDRESS" "$SALT_HEX" >> "$SALT_FILE"
 DEPLOY_OUTPUT="$(stellar contract deploy \
   --wasm "$WASM_OUT" \
+  --salt "$SALT_HEX" \
   --source "$DEPLOYER_IDENTITY" \
   "${NET_ARGS[@]}" 2>/tmp/deploy_stderr.log)"
 
@@ -185,6 +193,7 @@ if [ -z "$CONTRACT_ID" ]; then
   exit 1
 fi
 echo "  ✓ deployed: $CONTRACT_ID"
+printf '%s %s\n' "$CONTRACT_ID" "$SALT_HEX" >> "$SALT_FILE"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════════"
@@ -197,6 +206,8 @@ stellar contract invoke \
   "${NET_ARGS[@]}" \
   -- \
   initialize \
+  --deployer "$DEPLOYER_ADDRESS" \
+  --salt "$SALT_HEX" \
   --admin "$ADMIN_ADDRESS" \
   --asset "$ASSET_CONTRACT_ID" \
   --name "$VAULT_NAME" \

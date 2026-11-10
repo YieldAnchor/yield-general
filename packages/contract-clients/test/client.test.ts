@@ -442,6 +442,8 @@ describe('transaction builders', () => {
 
   it('builds initialize with the configured metadata', async () => {
     const built = await clientWith(server()).initialize({
+      deployer: ADMIN,
+      salt: Buffer.alloc(32, 7),
       admin: ADMIN,
       asset: ASSET,
       name: 'YieldAnchor Vault',
@@ -450,10 +452,14 @@ describe('transaction builders', () => {
     });
 
     expect(invokedMethod(built.transaction)).toBe('initialize');
-    expect(scValToNative(invokedArgs(built.transaction)[2])).toBe(
+    expect(scValToNative(invokedArgs(built.transaction)[0])).toBe(ADMIN);
+    expect(
+      Buffer.from(scValToNative(invokedArgs(built.transaction)[1])),
+    ).toEqual(Buffer.alloc(32, 7));
+    expect(scValToNative(invokedArgs(built.transaction)[4])).toBe(
       'YieldAnchor Vault',
     );
-    expect(scValToNative(invokedArgs(built.transaction)[4])).toBe(6);
+    expect(scValToNative(invokedArgs(built.transaction)[6])).toBe(6);
   });
 
   it('surfaces a contract rejection raised during simulation', async () => {

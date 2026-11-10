@@ -269,6 +269,7 @@ describe('createVaultContract', () => {
     });
 
     expect(result.contractId).toBe(CONTRACT);
+    expect(result.salt).toHaveLength(32);
   });
 
   it('rejects a wasm hash of the wrong length before spending a transaction', async () => {
@@ -310,6 +311,7 @@ describe('createVaultContract', () => {
     });
 
     expect(result.contractId).toBe(CONTRACT);
+    expect(result.salt).toEqual(Buffer.alloc(32, 2));
   });
 
   it('rejects a return value that is not a contract id', async () => {

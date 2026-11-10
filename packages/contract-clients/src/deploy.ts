@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   Account,
   Address,
@@ -76,6 +77,8 @@ export interface UploadedWasm {
 export interface CreatedContract {
   /** The new contract's `C...` address. */
   contractId: string;
+  /** Creation salt needed to authorize initialization after a failed deployment script. */
+  salt: Buffer;
   /** Transaction hash of the creation. */
   hash: string;
   ledger: number | null;
@@ -301,6 +304,10 @@ export async function createVaultContract(
       'create_contract',
     );
   }
+  const salt =
+    context.salt === undefined
+      ? randomBytes(SALT_LENGTH)
+      : Buffer.from(context.salt);
 
   const { hash, ledger, value } = await submitOperation(
     resolved,
@@ -308,14 +315,13 @@ export async function createVaultContract(
     Operation.createCustomContract({
       address: Address.fromString(resolved.source),
       wasmHash,
-      ...(context.salt === undefined
-        ? {}
-        : { salt: Buffer.from(context.salt) }),
+      salt,
     }),
   );
 
   return {
     contractId: contractIdSchema.parse(value),
+    salt,
     hash,
     ledger,
   };

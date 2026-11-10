@@ -15,6 +15,15 @@ Implemented in this phase:
 - Vault state, initialization, pause, balance, conversion, share-price, and liquidity read methods.
 - Initialization, deposit, withdrawal, share mint/burn, yield, and pause events.
 
+## Initialization authorization
+
+Initialization requires the deploying address and its 32-byte creation salt. The contract
+re-derives its own address from those values and requires the deployer's authorization;
+a different admin must authorize as well. A caller cannot seize an uninitialized vault
+by naming itself as admin. `AlreadyInit` still rejects every later initialization.
+Deployment tooling must retain the creation salt so initialization can be retried if
+the create transaction succeeds but the initialize transaction fails.
+
 ## Simulated yield warning
 
 The contract includes a deterministic simple-interest simulation at `8.00%` APR, derived only from Soroban ledger timestamps. This is enabled solely to support Phase 1 Testnet development and is exposed through the `simulation` field in `VaultState`.
