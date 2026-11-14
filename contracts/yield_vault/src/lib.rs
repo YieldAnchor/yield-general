@@ -94,10 +94,14 @@ pub struct YieldVault;
 impl YieldVault {
     /// Initialize the vault once with an arbitrary SEP-41-compatible asset.
     ///
+    /// The admin must authorize the call (`admin.require_auth()`), so a
+    /// front-runner cannot capture admin on a freshly deployed instance.
+    ///
     /// Phase 1's simulated yield is deliberately always enabled. This
     /// contract must only be used on Testnet until a production yield source
     /// is designed, implemented, and reviewed in a later phase.
     pub fn initialize(
+        
         env: Env,
         admin: Address,
         asset: Address,
