@@ -105,10 +105,13 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model. `initialize` requires
+the admin's signature (`admin.require_auth()` in `contracts/yield_vault/src/lib.rs`),
+so a front-runner can no longer capture admin on a freshly deployed instance: only the
+named admin can authorize installing itself. This is covered by the
+`authorization_is_required_for_initialization_users_and_admin` test. (An earlier
+revision of this document recorded `initialize` as unauthenticated; that caveat is
+closed — the contract now enforces admin authorization at initialization.)
 
 ## Redemption sizing in the source revision
 
