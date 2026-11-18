@@ -5,12 +5,12 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc -p .",
+    "dev": "node init && tsx watch src/server.ts",
+    "build": "node init && tsc -p .",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node dist/server.js"
+    "start": "node init && node dist/server.js"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "16.0.1",
