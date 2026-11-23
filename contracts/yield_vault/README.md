@@ -12,6 +12,7 @@ Implemented in this phase:
 - Integer-only accounting with checked arithmetic and explicit floor/ceiling rounding.
 - Admin pause/unpause controls.
 - Soroban address authorization for initialization, user operations, and admin operations.
+- `initialize` requires the proposed admin's own authorization (`admin.require_auth()`), so a front-runner cannot install an admin it does not control. It is one-time (`AlreadyInit`); the contract cannot identify its deployer, so initialize in the same operation as deployment and verify `admin` afterwards.
 - Vault state, initialization, pause, balance, conversion, share-price, and liquidity read methods.
 - Initialization, deposit, withdrawal, share mint/burn, yield, and pause events.
 

@@ -731,6 +731,42 @@ mod test {
     }
 
     #[test]
+    fn initialize_rejects_front_runner_installing_an_admin_it_does_not_control() {
+        // No auths are mocked: only genuine authorization from `admin` counts.
+        let env = Env::default();
+        let victim = Address::generate(&env);
+        let asset = env
+            .register_stellar_asset_contract_v2(victim.clone())
+            .address();
+        let vault = env.register_contract(None, YieldVault);
+        let client = YieldVaultClient::new(&env, &vault);
+        let name = String::from_str(&env, "YieldAnchor Vault");
+        let symbol = String::from_str(&env, "yVAULT");
+
+        // A front-runner names the intended operator (or any account it does
+        // not control) as admin without that account's signature.
+        assert!(client
+            .try_initialize(&victim, &asset, &name, &symbol, &6)
+            .is_err());
+        assert!(!client.is_initialized());
+
+        // The vault stays open for the real admin to initialize with its own
+        // authorization, and the authorized admin is the one recorded.
+        env.mock_all_auths();
+        client.initialize(&victim, &asset, &name, &symbol, &6);
+        assert!(client.is_initialized());
+        assert_eq!(client.get_vault_state().admin, victim);
+
+        // A later caller cannot replace the admin.
+        let attacker = Address::generate(&env);
+        assert_eq!(
+            client.try_initialize(&attacker, &asset, &name, &symbol, &6),
+            Err(Ok(VaultError::AlreadyInit))
+        );
+        assert_eq!(client.get_vault_state().admin, victim);
+    }
+
+    #[test]
     fn initialization_validates_metadata_and_is_one_time() {
         let (env, vault, asset, admin, _, _) = setup();
         let client = YieldVaultClient::new(&env, &vault);
