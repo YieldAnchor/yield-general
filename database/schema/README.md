@@ -18,9 +18,25 @@ Migrations are plain SQL files applied in filename order:
 | `001_create_tables.sql`          | Scaffold tables (`pool_snapshots`, `transaction_logs`) |
 | `002_create_protocol_tables.sql` | Phase 2 vault projection and indexer checkpoints       |
 
-They are applied through the Supabase SQL editor or `psql`. There is no
-migration runner yet: the project deliberately depends only on the Supabase
-client, which speaks PostgREST and therefore cannot issue DDL.
+Apply all migrations sequentially with:
+
+```bash
+DATABASE_URL="postgres://user:password@localhost:5432/dbname" pnpm run db:migrate
+```
+
+Or apply them manually through `psql` or the Supabase SQL editor.
+
+## Integration Testing
+
+Database-backed integration tests exercise event ingestion deduplication, batch coherence, foreign key tolerance, and checkpoint persistence against a real PostgreSQL/Supabase instance:
+
+```bash
+# Run against a configured database
+SUPABASE_URL="https://your-project.supabase.co" SUPABASE_SERVICE_ROLE_KEY="your-key" pnpm run test:integration
+
+# When database environment variables are unset, tests skip cleanly to preserve hermetic test runs
+pnpm test
+```
 
 ## Phase 2 tables
 
