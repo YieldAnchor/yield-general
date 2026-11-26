@@ -15,6 +15,21 @@ Implemented in this phase:
 - Vault state, initialization, pause, balance, conversion, share-price, and liquidity read methods.
 - Initialization, deposit, withdrawal, share mint/burn, yield, and pause events.
 
+## Initialization authorization
+
+`initialize` requires the proposed administrator's own signature through
+`admin.require_auth()`. A caller may propose any administrator address, but only
+that address can authorize installing itself. A front-runner therefore cannot
+capture a fresh vault and assign control to an administrator it does not
+control. The one-time `AlreadyInit` check still runs before metadata validation,
+so no second initialization can replace the first administrator.
+
+This guarantee closes foreign-admin capture, but the contract still has no way
+to identify its original deployer. A caller that signs as its own proposed
+administrator can initialize an otherwise untouched instance first. Deployers
+should continue to call `initialize` immediately after creation, and operators
+should verify the administrator recorded by the successful transaction.
+
 ## Simulated yield warning
 
 The contract includes a deterministic simple-interest simulation at `8.00%` APR, derived only from Soroban ledger timestamps. This is enabled solely to support Phase 1 Testnet development and is exposed through the `simulation` field in `VaultState`.

@@ -105,10 +105,18 @@ The deposit side is unaffected: principal is fully backed, and a depositor can a
 withdraw up to what the vault holds.
 
 Beyond the yield simulation, the vault has no NAV source, no oracle, no reserve proof,
-no fees, no per-user withdrawal queue, and no compliance model. `initialize` is
-unauthenticated — the first caller to reach a freshly deployed instance becomes the
-vault's admin, so a deployment should be initialized in the same breath as its
-creation, as this deployment was.
+no fees, no per-user withdrawal queue, and no compliance model. `initialize` requires
+the proposed administrator's signature through `admin.require_auth()`, so a caller
+cannot install an administrator address it does not control. The contract cannot
+identify its original deployer; a caller that signs as its own proposed administrator
+can still initialize an untouched instance first. Deployments should therefore
+initialize in the same transaction flow as creation, as this deployment did, and
+verify the `admin` recorded by the successful initialization transaction.
+
+The historical Testnet deployment above predates this documented source guarantee.
+Its successful initialization transaction is the authoritative evidence for the
+administrator that was installed; do not infer the current source revision is the
+deployed wasm.
 
 ## Redemption sizing in the source revision
 

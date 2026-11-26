@@ -1089,5 +1089,62 @@ mod test {
                 &6,
             )
             .is_err());
+        assert!(!fresh_client.is_initialized());
+    }
+
+    #[test]
+    fn initialize_rejects_a_front_runner_installing_a_foreign_admin() {
+        use soroban_sdk::{
+            testutils::{MockAuth, MockAuthInvoke},
+            vec, IntoVal,
+        };
+
+        let env = Env::default();
+        let intended_admin = Address::generate(&env);
+        let attacker = Address::generate(&env);
+        let asset = env
+            .register_stellar_asset_contract_v2(intended_admin.clone())
+            .address();
+        let vault = env.register_contract(None, YieldVault);
+        let client = YieldVaultClient::new(&env, &vault);
+        let name = String::from_str(&env, "Yield");
+        let symbol = String::from_str(&env, "Y");
+
+        // This authentication entry proves the attacker's own authority over
+        // this exact call. It deliberately does not grant any authority from
+        // `intended_admin`, so installing that foreign administrator must fail.
+        env.mock_auths(&[MockAuth {
+            address: &attacker,
+            invoke: &MockAuthInvoke {
+                contract: &vault,
+                fn_name: "initialize",
+                args: vec![
+                    &env,
+                    intended_admin.into_val(&env),
+                    asset.into_val(&env),
+                    name.into_val(&env),
+                    symbol.into_val(&env),
+                    6u32.into_val(&env),
+                ],
+                sub_invokes: &[],
+            },
+        }]);
+        assert!(client
+            .try_initialize(&intended_admin, &asset, &name, &symbol, &6)
+            .is_err());
+        assert!(!client.is_initialized());
+
+        // Once the intended administrator's authorization is present, the
+        // vault initializes and records exactly that administrator.
+        env.mock_all_auths();
+        client.initialize(&intended_admin, &asset, &name, &symbol, &6);
+        assert!(client.is_initialized());
+        assert_eq!(client.admin(), intended_admin);
+
+        // Authorization cannot replace the administrator after initialization.
+        assert_eq!(
+            client.try_initialize(&attacker, &asset, &name, &symbol, &6),
+            Err(Ok(VaultError::AlreadyInit))
+        );
     }
 }
